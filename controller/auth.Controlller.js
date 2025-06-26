@@ -66,9 +66,18 @@ export const login = asyncHandler(async (req, res) => {
     throw new Error('Email not verified. Please verify with OTP first.');
   }
 
+  const token = generateToken(user._id);
+
+  // Set token as httpOnly cookie
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+
   res.status(200).json({
     message: 'Login successful',
-    token: generateToken(user._id),
     user: {
       id: user._id,
       firstName: user.firstName,
@@ -114,4 +123,3 @@ export const requestPasswordReset = asyncHandler(async (req, res) => {
   
     res.status(200).json({ message: 'Password reset successful. You can now login.' });
   });
-  
