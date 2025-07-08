@@ -37,13 +37,34 @@ export const register = asyncHandler(async (req, res) => {
   });
 });
 
+// export const verifyOtp = asyncHandler(async (req, res) => {
+//   const { email, otp } = req.body;
+
+//   const user = await User.findOne({ email });
+//   if (!user) throw new Error('User not found');
+//   if (user.otp !== otp || user.otpExpires < Date.now()) {
+//     throw new Error('Invalid or expired OTP');
+//   }
+
+//   user.isVerified = true;
+//   user.otp = undefined;
+//   user.otpExpires = undefined;
+//   await user.save();
+
+//   res.status(200).json({ message: 'Email verified successfully' });
+// });
+
 export const verifyOtp = asyncHandler(async (req, res) => {
+  console.log("Received OTP verification request:", req.body);
   const { email, otp } = req.body;
+  
+  console.log("Verifying OTP for email:", email, "with OTP:", otp);
 
   const user = await User.findOne({ email });
   if (!user) throw new Error('User not found');
-console.log(user.otp, otp);
-  if (user.otp !== otp || user.otpExpires < Date.now()) {
+
+  // FIX: Convert incoming OTP to a string for a reliable comparison
+  if (user.otp !== String(otp) || user.otpExpires < Date.now()) {
     throw new Error('Invalid or expired OTP');
   }
 
@@ -124,3 +145,24 @@ export const requestPasswordReset = asyncHandler(async (req, res) => {
   
     res.status(200).json({ message: 'Password reset successful. You can now login.' });
   });
+
+export const logout = asyncHandler(async (req, res) => {
+  // To log out, we clear the cookie
+  console.log("Logging out user");
+  res.cookie('token', '', {
+    httpOnly: true,
+    expires: new Date(0), // Set expiration date to the past
+
+  });
+  res.status(200).json({ message: 'Logged out successfully' });
+});
+  
+
+//   exports.logout = (req, res) => {
+//   // To log out, we clear the cookie
+//   res.cookie('token', '', {
+//     httpOnly: true,
+//     expires: new Date(0), // Set expiration date to the past
+//   });
+//   res.status(200).json({ message: 'Logged out successfully' });
+// };
