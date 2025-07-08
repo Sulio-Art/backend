@@ -7,7 +7,8 @@ if (!process.env.MONGO_URI) {
 
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGO_URI;
+    const mongoURI = "mongodb://localhost:27017/test_sulio_test"
+;
 
     if (!mongoURI) {
       throw new Error('MONGO_URI environment variable not set.');
@@ -15,7 +16,7 @@ const connectDB = async () => {
 
     await mongoose.connect(mongoURI);
     console.log(' Connected to MongoDB');
-    console.log('asas')
+  
     const { host, port, name } = mongoose.connection;
     console.log(`MongoDB running at ${host}:${port} / DB: ${name}`);
   } catch (error) {

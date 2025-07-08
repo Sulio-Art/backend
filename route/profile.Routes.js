@@ -6,6 +6,7 @@ import {
   getAllProfiles,
   deleteMyProfile,
 } from '../controller/profile.Controller.js';
+import { upload } from '../middleware/cloudinery.middleware.js';
 
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -15,7 +16,7 @@ router.get('/', getAllProfiles);
 
 router.route('/me')
   .get(protect, getMyProfile)
-  .post(protect, createOrUpdateMyProfile)
+  .post(protect, upload.single('profilePicture'),createOrUpdateMyProfile)
   .put(protect, createOrUpdateMyProfile)
   .delete(protect, deleteMyProfile);
 

@@ -1,35 +1,90 @@
 import Artwork from '../model/artWork.Model.js';
 import mongoose from 'mongoose';
 
+import cloudinary from '../middleware/cloudinery.middleware.js';
+import streamifier from 'streamifier'; 
+
+
+// const createArtwork = async (req, res) => {
+//   try {
+//     const { title, description, imageUrl, category } = req.body;
+    
+//     const userId = req.user.id; 
+
+//     if (!title || !imageUrl) {
+//       return res.status(400).json({ message: 'Title and Image URL are required' });
+//     }
+
+//      const result = await cloudinary.uploader.upload_stream(
+//       { folder: 'artworks' },
+//       async (error, result) => {
+//         if (error) {
+//           return res.status(500).json({ message: 'Cloudinary Upload Error', error: error.message });
+//         }
+
+
+//     const newArtwork = new Artwork({
+//       title,
+//       description,
+//       imageUrl,
+//       category,
+//       createdBy: userId, 
+//     });
+
+//     const savedArtwork = await newArtwork.save();
+//   }
+//   )
+    
+//     await savedArtwork.populate('createdBy', 'name email');
+
+//     res.status(201).json(savedArtwork);
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server Error', error: error.message });
+//   }
+// };
 
 const createArtwork = async (req, res) => {
   try {
-    const { title, description, imageUrl, category } = req.body;
-    
-    const userId = req.user.id; 
+    const { title, description, category } = req.body;
+    const userId = req.user.id;
 
-    if (!title || !imageUrl) {
-      return res.status(400).json({ message: 'Title and Image URL are required' });
+    if (!title || !req.file) {
+      return res.status(400).json({ message: 'Title and image file are required' });
     }
+
+    const cloudinaryUpload = () => {
+      return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: 'artworks' },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+
+        streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+      });
+    };
+
+    const result = await cloudinaryUpload();
 
     const newArtwork = new Artwork({
       title,
       description,
-      imageUrl,
+      imageUrl: result.secure_url,
       category,
-      createdBy: userId, 
+      createdBy: userId,
     });
 
     const savedArtwork = await newArtwork.save();
-    
     await savedArtwork.populate('createdBy', 'name email');
 
     res.status(201).json(savedArtwork);
   } catch (error) {
+    console.error('Upload error:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
-
 
 const getAllArtworks = async (req, res) => {
   try {
