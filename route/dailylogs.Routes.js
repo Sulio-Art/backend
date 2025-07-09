@@ -17,8 +17,8 @@ import {
   getDiaryEntryById,
   updateDiaryEntry,
   deleteDiaryEntry,
-} from '../controllers/diary.controller.js';
-import { protect } from '../middleware/authMiddleware.js';
+} from '../controller/dailyDiary.Controller.js';
+import { protect } from '../middleware/auth.middleware.js';
 
 
 const router = express.Router();

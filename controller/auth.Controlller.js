@@ -118,7 +118,7 @@ export const requestPasswordReset = asyncHandler(async (req, res) => {
     if (!user) throw new Error('No user found with this email');
   
     const otp = crypto.randomInt(100000, 999999).toString();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); 
   
     user.otp = otp;
     user.otpExpires = otpExpires;

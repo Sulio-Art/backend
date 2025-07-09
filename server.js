@@ -41,7 +41,7 @@ import profileRoutes from './route/profile.Routes.js';
 import settingsRoutes from './route/setting.Routes.js';
 // import paymentRoutes from './route/payment.Routes.js';
 // import chatLogRoutes from './route/chatRoutes.js';
-// import diaryEntryRoutes from './route/dailylogs.Routes.js';
+import diaryEntryRoutes from './route/dailylogs.Routes.js';
 // 
 // Load environment variables
 dotenv.config();
@@ -78,7 +78,7 @@ app.use('/api/profiles', profileRoutes);
 app.use('/api/settings', settingsRoutes);
 // app.use('/api/payments', paymentRoutes); 
 // app.use('/api/chatlogs', chatLogRoutes); 
-// app.use('/api/diary', diaryEntryRoutes);
+app.use('/api/diary', diaryEntryRoutes);
 
 
 app.get('/', (req, res) => {

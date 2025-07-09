@@ -1,4 +1,4 @@
-import DiaryEntry from '../models/diaryEntry.model.js';
+import DiaryEntry from '../model/dairyEntry.Model.js';
 import mongoose from 'mongoose';
 
 const createDiaryEntry = async (req, res) => {

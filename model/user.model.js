@@ -8,6 +8,9 @@ const userSchema = new mongoose.Schema({
   phoneNumber: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   isVerified: { type: Boolean, default: false },
+  role: { type: String, 
+      enum: ['admin', 'user'],
+      default: "user" },
   otp: String,
   otpExpires: Date,
 }, { timestamps: true });
