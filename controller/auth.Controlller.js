@@ -55,15 +55,14 @@ export const register = asyncHandler(async (req, res) => {
 // });
 
 export const verifyOtp = asyncHandler(async (req, res) => {
-  console.log("Received OTP verification request:", req.body);
   const { email, otp } = req.body;
-  
-  console.log("Verifying OTP for email:", email, "with OTP:", otp);
+  if(!email){
+    throw new Error('Email is required')
+  }
 
   const user = await User.findOne({ email });
-  if (!user) throw new Error('User not found');
+  if (!user) {throw new Error('User not found')};
 
-  // FIX: Convert incoming OTP to a string for a reliable comparison
   if (user.otp !== String(otp) || user.otpExpires < Date.now()) {
     throw new Error('Invalid or expired OTP');
   }
