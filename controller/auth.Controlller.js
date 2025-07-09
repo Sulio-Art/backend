@@ -56,6 +56,8 @@ export const register = asyncHandler(async (req, res) => {
 
 export const verifyOtp = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
+  console.log("Verifying OTP for email:", email);
+  console.log("Received OTP:", otp);
   if(!email){
     throw new Error('Email is required')
   }
