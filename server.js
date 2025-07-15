@@ -1,90 +1,86 @@
-// import express from 'express';
-// import dotenv from 'dotenv';
-// import cors from 'cors';
-// import connectDB from './conifg/database.js';
-// import chatRoutes from './route/chat.ROutes.js';
-// import authRoutes from './route/auth.Routes.js';
+// backend/server.js
 
-// dotenv.config();
-// connectDB();
+import express from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import connectDB from "./conifg/database.js"; // Use your good DB connection file
+import cookieParser from "cookie-parser";
+import errorHandler from "./middleware/errorHandler.js";
 
-// const app = express();
-
-
-// app.use(cors());
-// app.use(express.json());
-
-
-// app.use('/api', chatRoutes);
-// app.use('/api/auth', authRoutes);
-
-
-// const PORT = process.env.PORT || 5000;
-// app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-
-
-
-
-
-import express from 'express';
-import dotenv from 'dotenv';
-import cors from 'cors';
-import mongoose from 'mongoose';
-
-
-import authRoutes from './route/auth.Routes.js';
-import artworkRoutes from './route/artwork.Routes.js';
-// import customerRoutes from './route/customerRoutes.js';
-import eventRoutes from './route/event.Routes.js';
-import profileRoutes from './route/profile.Routes.js';
-import settingsRoutes from './route/setting.Routes.js';
-// import paymentRoutes from './route/payment.Routes.js';
-// import chatLogRoutes from './route/chatRoutes.js';
-import diaryEntryRoutes from './route/dailylogs.Routes.js';
-// 
+// Import all your route files
+import authRoutes from "./route/auth.Routes.js";
+import artworkRoutes from "./route/artwork.Routes.js";
+import eventRoutes from "./route/event.Routes.js";
+import profileRoutes from "./route/profile.Routes.js";
+import settingsRoutes from "./route/setting.Routes.js";
+import customerRoutes from "./route/customerRoutes.js";
+import chatRoutes from "./route/chat.Routes.js";
+import diaryEntryRoutes from "./route/dailylogs.Routes.js";
+// ... add any other route imports here
 // Load environment variables
 dotenv.config();
 
 // Connect to MongoDB
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('MongoDB Connected...');
-  } catch (err) {
-    console.error(err.message);
-    process.exit(1); // Exit process with failure
-  }
-};
 connectDB();
 
 const app = express();
 
+// --- START OF CRITICAL MIDDLEWARE CONFIGURATION ---
 
-app.use(cors({
-  origin: 'http://localhost:3000', // <-- set your frontend URL here
-  credentials: true,               // <-- allow cookies to be sent
-})); 
-app.use(express.json()); 
+// Define allowed origins for CORS
+const allowedOrigins = ["http://localhost:3000"]; // Add your production frontend URL here later
 
+// Set up robust CORS options
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
 
+    // Allow the request if the origin is in our allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true, // This is essential for sending and receiving cookies
+};
 
-//Routes
-app.use('/api/auth', authRoutes); 
-app.use('/api/artworks', artworkRoutes);
-// app.use('/api/customers', customerRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/profiles', profileRoutes);
-app.use('/api/settings', settingsRoutes);
-// app.use('/api/payments', paymentRoutes); 
-// app.use('/api/chatlogs', chatLogRoutes); 
-app.use('/api/diary', diaryEntryRoutes);
+// Use the configured CORS middleware
+app.use(cors(corsOptions));
 
+// Use cookie-parser to help Express parse cookies from incoming requests
+app.use(cookieParser());
 
-app.get('/', (req, res) => {
-  res.send('API is running...');
+// Standard middleware to parse JSON request bodies
+app.use(express.json());
+
+// --- END OF CRITICAL MIDDLEWARE CONFIGURATION ---
+
+// --- API Routes ---
+app.use("/api/auth", authRoutes);
+app.use("/api/artworks", artworkRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/diary", diaryEntryRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/profiles", profileRoutes);
+app.use("/api/settings", settingsRoutes);
+// app.use("/api/subscriptions", subscriptionRoutes);
+// app.use("/api/transactions", transactionRoutes);
+
+// --- Root Route for Health Check ---
+app.get("/", (req, res) => {
+  res.send("Sulio Art API is running...");
 });
 
+// --- Global Error Handler ---
+// This should be the LAST piece of middleware you use
+app.use(errorHandler);
+
+// --- Server Initialization ---
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`)
+);

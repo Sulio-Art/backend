@@ -7,8 +7,17 @@ const router = express.Router();
 router.get('/', getAllArtworks);
 router.get('/:id', getArtworkById);
 
+router.route('/')
+    .post(protect, upload.single('image'), createArtwork);
+
+router.route('/:id')
+    .put(protect, updateArtwork)
+    .delete(protect, deleteArtwork);
+
+/*
 router.post('/', protect,upload.single('image'), createArtwork);
 router.put('/:id', protect, updateArtwork);
 router.delete('/:id', protect, deleteArtwork);
+*/
 
 export default router;

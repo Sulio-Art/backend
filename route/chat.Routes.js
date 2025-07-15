@@ -4,7 +4,7 @@ import { verifyInstagramToken } from '../middleware/verifyInstagramToken.js';
 
 const router = express.Router();
 
-router.post('/chat', verifyInstagramToken, handleChat);
-router.get('/chat', getChatHistory); 
+router.post('/', verifyInstagramToken, handleChat);
+router.get('/', getChatHistory); 
 
 export default router;

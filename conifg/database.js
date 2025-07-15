@@ -7,7 +7,7 @@ if (!process.env.MONGO_URI) {
 
 const connectDB = async () => {
   try {
-    const mongoURI = "mongodb://localhost:27017/test_sulio_test"
+    const mongoURI = process.env.MONGO_URI;
 ;
 
     if (!mongoURI) {

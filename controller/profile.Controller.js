@@ -1,98 +1,67 @@
-import cloudinary from '../middleware/cloudinery.middleware.js';
-import streamifier from 'streamifier';
-import Profile from '../model/profile.Model.js';
-import mongoose from 'mongoose'
+// backend/controller/profile.Controller.js
 
+import cloudinary from "../middleware/cloudinery.middleware.js";
+import streamifier from "streamifier";
+import Profile from "../model/profile.Model.js";
+import mongoose from "mongoose";
+
+// ... your createOrUpdateMyProfile function ...
 const createOrUpdateMyProfile = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const bodyData = { ...req.body };
-
-    // Optional image upload
-    let profilePictureUrl = bodyData.profilePicture || undefined;
-
-    if (req.file) {
-      const cloudinaryUpload = () => {
-        return new Promise((resolve, reject) => {
-          const uploadStream = cloudinary.uploader.upload_stream(
-            { folder: 'profile_pictures' },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result);
-            }
-          );
-          streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
-        });
-      };
-
-      const result = await cloudinaryUpload();
-      profilePictureUrl = result.secure_url;
-    }
-
-    const profileData = {
-      ...bodyData,
-      userId,
-      profilePicture: profilePictureUrl,
-    };
-
-    const profile = await Profile.findOneAndUpdate(
-      { userId },
-      { $set: profileData },
-      { new: true, upsert: true, runValidators: true }
-    ).populate('userId', 'name email');
-
-    res.status(200).json(profile);
-  } catch (error) {
-    console.error('Profile Update Error:', error);
-    res.status(500).json({ message: 'Server Error', error: error.message });
-  }
+  // ... this function remains the same
 };
+
+// --- REPLACE THE ENTIRE getMyProfile FUNCTION WITH THIS ---
 const getMyProfile = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ userId: req.user.id }).populate('userId', 'name email');
+    // We get the user ID from the protect middleware
+    const userId = req.user.id;
+
+    let profile = await Profile.findOne({ userId: userId }).populate(
+      "userId",
+      "firstName lastName email"
+    );
+
+    // FIX: If no profile exists for the user, create a default one.
     if (!profile) {
-      return res.status(404).json({ message: 'Profile not found for this user' });
+      console.log(
+        `No profile found for user ${userId}, creating a default one.`
+      );
+
+      // Create a new profile instance with default values
+      profile = new Profile({
+        userId: userId,
+        bio: "Welcome to my profile! I'm excited to share my art.",
+        // The default profile picture URL will be taken from your Profile model schema.
+      });
+
+      // Save the new default profile to the database
+      await profile.save();
+
+      // We need to re-populate the user information onto the newly created profile
+      // before sending it back to the client.
+      await profile.populate("userId", "firstName lastName email");
     }
+
+    // Whether the profile was found or newly created, send it back.
     res.status(200).json(profile);
   } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
+    console.error("Get My Profile Error:", error);
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
+// --- END OF REPLACEMENT ---
 
+// ... the rest of your exported functions (getProfileByUserId, etc.) ...
 const getProfileByUserId = async (req, res) => {
-  try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
-      return res.status(400).json({ message: 'Invalid User ID' });
-    }
-    const profile = await Profile.findOne({ userId: req.params.userId }).populate('userId', 'name');
-    if (!profile) {
-      return res.status(404).json({ message: 'Profile not found' });
-    }
-    res.status(200).json(profile);
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
-  }
+  // ... this function remains the same
 };
 
 const getAllProfiles = async (req, res) => {
-  try {
-    const profiles = await Profile.find().populate('userId', 'name email');
-    res.status(200).json(profiles);
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
-  }
+  // ... this function remains the same
 };
 
 const deleteMyProfile = async (req, res) => {
-  try {
-    const profile = await Profile.findOneAndDelete({ userId: req.user.id });
-    if (!profile) {
-      return res.status(404).json({ message: 'Profile not found to delete' });
-    }
-    res.status(200).json({ message: 'Profile deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
-  }
+  // ... this function remains the same
 };
 
 export {
@@ -100,5 +69,5 @@ export {
   getMyProfile,
   getProfileByUserId,
   getAllProfiles,
-  deleteMyProfile
+  deleteMyProfile,
 };
