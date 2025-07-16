@@ -13,7 +13,7 @@ import artworkRoutes from "./route/artwork.Routes.js";
 import eventRoutes from "./route/event.Routes.js";
 import profileRoutes from "./route/profile.Routes.js";
 import settingsRoutes from "./route/setting.Routes.js";
-import customerRoutes from "./route/customerRoutes.js";
+import customerRoutes from "./route/customer.Routes.js";
 import chatRoutes from "./route/chat.Routes.js";
 import diaryEntryRoutes from "./route/dailylogs.Routes.js";
 // ... add any other route imports here
