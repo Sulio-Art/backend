@@ -29,7 +29,7 @@ const app = express();
 // --- START OF CRITICAL MIDDLEWARE CONFIGURATION ---
 
 // Define allowed origins for CORS
-const allowedOrigins = ["http://localhost:3000"]; // Add your production frontend URL here later
+const allowedOrigins = ["https://frontend-cgql.vercel.app"]; // Add your production frontend URL here later
 
 // Set up robust CORS options
 const corsOptions = {
