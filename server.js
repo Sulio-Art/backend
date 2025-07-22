@@ -12,6 +12,7 @@ import authRoutes from "./route/auth.Routes.js";
 import artworkRoutes from "./route/artwork.Routes.js";
 import eventRoutes from "./route/event.Routes.js";
 import profileRoutes from "./route/profile.Routes.js";
+import verifyOtpRoutes from "./route/verifyOtp.Routes.js"; 
 import settingsRoutes from "./route/setting.Routes.js";
 import customerRoutes from "./route/customer.Routes.js";
 import chatRoutes from "./route/chat.Routes.js";
@@ -61,21 +62,19 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/artworks", artworkRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/verify-otp", verifyOtpRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/diary", diaryEntryRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/profiles", profileRoutes);
 app.use("/api/settings", settingsRoutes);
-// app.use("/api/subscriptions", subscriptionRoutes);
-// app.use("/api/transactions", transactionRoutes);
 
-// --- Root Route for Health Check ---
+
+
 app.get("/", (req, res) => {
   res.send("Sulio Art API is running...");
 });
 
-// --- Global Error Handler ---
-// This should be the LAST piece of middleware you use
 app.use(errorHandler);
 
 // --- Server Initialization ---

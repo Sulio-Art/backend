@@ -3,35 +3,26 @@ import asyncHandler from "express-async-handler";
 import User from "../model/user.model.js";
 
 const protect = asyncHandler(async (req, res, next) => {
-  let token;
-
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
-
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      req.user = await User.findById(decoded.id).select("-password");
-
-      if (!req.user) {
-        res.status(401);
-        throw new Error("User not found");
-      }
-
-      next();
-    } catch (error) {
-      console.error(error);
-      res.status(401);
-      throw new Error("Not authorized, token failed");
-    }
-  }
+  const token = req.headers.authorization?.replace("Bearer ", "");
 
   if (!token) {
-    res.status(401);
-    throw new Error("Not authorized, no token");
+    return res.status(401).json({ message: "No token, authorization denied" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    req.user = await User.findById(decoded.id).select("-password");
+
+    if (!req.user) {
+      return res
+        .status(401)
+        .json({ message: "User belonging to this token no longer exists" });
+    }
+
+    next();
+  } catch (err) {
+    res.status(401).json({ message: "Token is not valid" });
   }
 });
 
