@@ -3,9 +3,9 @@ import {
   createCustomer,
   getCustomers,
 } from "../controller/customer.Controller.js";
-import { protect, admin } from "../middleware/auth.middleware.js";
+import { protect } from "../middleware/auth.middleware.js";
 const router = express.Router();
 
-router.route("/").post(createCustomer).get(protect, admin, getCustomers);
+router.route("/").post(createCustomer).get(protect, getCustomers);
 
 export default router;
