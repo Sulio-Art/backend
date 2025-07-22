@@ -10,7 +10,14 @@ export const connectInstagramAccount = async (req, res) => {
   }
 
   try {
-    // --- Step 1: Exchange Code for Tokens ---
+    /**
+     * =================================================================
+     * STEP 1: Exchange Code for Short-Lived Token & User ID
+     * =================================================================
+     * The user_id is ONLY available in this first API response.
+     * The previous code was incorrectly trying to find it in the
+     * long-lived token response, which was the source of the error.
+     */
     const tokenFormData = new URLSearchParams();
     tokenFormData.append('client_id', process.env.INSTAGRAM_APP_ID);
     tokenFormData.append('client_secret', process.env.INSTAGRAM_APP_SECRET);
@@ -27,7 +34,11 @@ export const connectInstagramAccount = async (req, res) => {
     if (tokenData.error_message) throw new Error(tokenData.error_message);
 
     const shortLivedAccessToken = tokenData.access_token;
-    const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedAccessToken}`;
+    // FIX: The user_id is correctly retrieved from THIS response (tokenData).
+    const instagramUserId = tokenData.user_id; 
+
+    // --- Exchange for Long-Lived Token ---
+    const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedAccessToken};`
     const longLivedTokenResponse = await fetch(longLivedTokenUrl);
     const longLivedTokenData = await longLivedTokenResponse.json();
     if (longLivedTokenData.error) throw new Error(longLivedTokenData.error.message);
@@ -35,22 +46,28 @@ export const connectInstagramAccount = async (req, res) => {
     const longLivedAccessToken = longLivedTokenData.access_token;
     const expiresIn = longLivedTokenData.expires_in;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
-    const instagramUserId = longLivedTokenData.user_id;
 
-    // --- NEW Step 2: Fetch Profile Data Immediately ---
+    /**
+     * =================================================================
+     * STEP 2: Fetch Profile Data using the correct User ID
+     * =================================================================
+     */
     const fields = 'id,username,followers_count,biography,profile_picture_url,website';
-    const profileApiUrl = `https://graph.instagram.com/${instagramUserId}?fields=${fields}&access_token=${longLivedAccessToken}`;
+    const profileApiUrl = `https://graph.instagram.com/${instagramUserId}?fields=${fields}&access_token=${longLivedAccessToken};`
     const profileResponse = await fetch(profileApiUrl);
     const profileData = await profileResponse.json();
     if (profileData.error) throw new Error(profileData.error.message);
 
-    // --- Step 3: Save EVERYTHING to the Database ---
+    /**
+     * =================================================================
+     * STEP 3: Save all data, including the now-correct User ID
+     * =================================================================
+     */
     await User.findByIdAndUpdate(loggedInUserId, {
-      // Tokens
-      instagramUserId: instagramUserId,
+      // INFO: This now saves the valid instagramUserId obtained from the fix above.
+      instagramUserId: instagramUserId, 
       instagramAccessToken: longLivedAccessToken,
       instagramTokenExpiresAt: expiresAt,
-      // Profile Data
       instagramUsername: profileData.username,
       instagramProfilePictureUrl: profileData.profile_picture_url,
       instagramFollowersCount: profileData.followers_count,
@@ -69,6 +86,8 @@ export const connectInstagramAccount = async (req, res) => {
   }
 };
 
+// INFO: This function did not need changes. It works correctly now
+// because the bug in connectInstagramAccount has been fixed.
 export const getInstagramProfile = async (req, res) => {
   const loggedInUserId = req.user.id;
   const shouldRefresh = req.query.refresh === 'true';
@@ -80,7 +99,6 @@ export const getInstagramProfile = async (req, res) => {
       return res.status(400).json({ message: 'This account has not been connected to Instagram.' });
     }
 
-    // If a refresh is requested, fetch from API and update the DB
     if (shouldRefresh) {
       if (new Date() > user.instagramTokenExpiresAt) {
           return res.status(401).json({ message: 'The Instagram token has expired. Please reconnect the account.' });
@@ -88,23 +106,21 @@ export const getInstagramProfile = async (req, res) => {
       
       const { instagramAccessToken, instagramUserId } = user;
       const fields = 'id,username,followers_count,biography,profile_picture_url,website';
-      const apiUrl = `https://graph.instagram.com/${instagramUserId}?fields=${fields}&access_token=${instagramAccessToken}`;
+      const apiUrl = `https://graph.instagram.com/${instagramUserId}?fields=${fields}&access_token=${instagramAccessToken};`
 
       const response = await fetch(apiUrl);
       const data = await response.json();
       if (data.error) throw new Error(data.error.message);
 
-      // Update user in DB with the fresh data
       user = await User.findByIdAndUpdate(loggedInUserId, {
         instagramUsername: data.username,
         instagramProfilePictureUrl: data.profile_picture_url,
         instagramFollowersCount: data.followers_count,
         instagramBio: data.biography,
         instagramWebsite: data.website
-      }, { new: true }); // {new: true} returns the updated document
+      }, { new: true });
     }
 
-    // Respond with the (potentially updated) data from our database
     res.status(200).json({
       id: user.instagramUserId,
       username: user.instagramUsername,
@@ -116,6 +132,6 @@ export const getInstagramProfile = async (req, res) => {
 
   } catch (error) {
     console.error("BACKEND: An error occurred while fetching the Instagram profile:", error);
-    res.status(500).json({ message: error.message || 'An internal server error occurred.' });
-  }
+    res.status(500).json({ message: error.message || 'An internal server error occurred.' });
+  }
 };
