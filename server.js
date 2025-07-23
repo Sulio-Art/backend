@@ -13,7 +13,7 @@ import profileRoutes from "./route/profile.Routes.js";
 import settingsRoutes from "./route/setting.Routes.js";
 import customerRoutes from "./route/customer.Routes.js";
 import chatRoutes from "./route/chat.Routes.js";
-import dairyRoutes from "./route/dairy.Routes.js"; // Corrected import name
+import dairyRoutes from "./route/daily.logs.js"; // Corrected import name
 
 const startServer = async () => {
   dotenv.config();
