@@ -25,7 +25,8 @@ const startServer = async () => {
     await connectDB();
 
     // 2. Mount Middleware only after successful DB connection
-    const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+    // const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+    const allowedOrigins = `https://frontend-cgql.vercel.app/`
     const corsOptions = {
       origin: (origin, callback) => {
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
