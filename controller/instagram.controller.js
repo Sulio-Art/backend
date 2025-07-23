@@ -136,7 +136,7 @@ export const getInstagramProfile = async (req, res) => {
         console.log(`[Instagram Token Refresh]: Token for user ${user.username} successfully refreshed.`);
 
       } catch (refreshError) {
-        console.error([Instagram Token Refresh]: FAILED to refresh token for user ${user.username}. They may need to reconnect. Error: ${refreshError.message});
+        console.error(`[Instagram Token Refresh]: FAILED to refresh token for user ${user.username}. They may need to reconnect. Error: ${refreshError.message}`);
         // Do not block the request if refresh fails; proceed with the old token.
         // The client can be notified of the potential issue.
       }
