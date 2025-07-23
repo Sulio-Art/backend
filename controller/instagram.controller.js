@@ -48,7 +48,7 @@ export const connectInstagramAccount = async (req, res) => {
     }
 
     // --- Step 2: Exchange for a Long-Lived Token ---
-    const longLivedTokenUrl = https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedAccessToken};
+    const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedAccessToken}`;
     const longLivedTokenResponse = await fetch(longLivedTokenUrl);
     const longLivedTokenData = await longLivedTokenResponse.json();
     if (longLivedTokenData.error) {
