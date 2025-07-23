@@ -61,7 +61,7 @@ export const connectInstagramAccount = async (req, res) => {
     
     // --- Step 3: Fetch Profile Data using the valid User ID and Long-Lived Token ---
     const fields = 'id,username,followers_count,biography,profile_picture_url,website';
-    const profileApiUrl = https://graph.instagram.com/${instagramUserId}?fields=${fields}&access_token=${longLivedAccessToken};
+    const profileApiUrl = `https://graph.instagram.com/${instagramUserId}?fields=${fields}&access_token=${longLivedAccessToken}`;
     const profileResponse = await fetch(profileApiUrl);
     const profileData = await profileResponse.json();
     if (profileData.error) {
@@ -121,7 +121,7 @@ export const getInstagramProfile = async (req, res) => {
     if (user.instagramTokenExpiresAt < sevenDaysFromNow) {
       console.log([Instagram Token Refresh]: Token for user ${user.username} is nearing expiration. Attempting refresh.);
       try {
-        const refreshTokenUrl = https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${user.instagramAccessToken};
+        const refreshTokenUrl = `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${user.instagramAccessToken}`;
         const refreshResponse = await fetch(refreshTokenUrl);
         const refreshData = await refreshResponse.json();
 
@@ -145,7 +145,7 @@ export const getInstagramProfile = async (req, res) => {
     // If a manual data refresh is requested, fetch from API and update the DB
     if (shouldRefreshData) {
       const fields = 'id,username,followers_count,biography,profile_picture_url,website';
-      const apiUrl = https://graph.instagram.com/${user.instagramUserId}?fields=${fields}&access_token=${user.instagramAccessToken};
+      const apiUrl = `https://graph.instagram.com/${user.instagramUserId}?fields=${fields}&access_token=${user.instagramAccessToken}`;
 
       const response = await fetch(apiUrl);
       const data = await response.json();
