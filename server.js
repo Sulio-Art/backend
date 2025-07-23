@@ -13,7 +13,7 @@ import profileRoutes from "./route/profile.Routes.js";
 import settingsRoutes from "./route/setting.Routes.js";
 import customerRoutes from "./route/customer.Routes.js";
 import chatRoutes from "./route/chat.Routes.js";
-import diaryRoutes from "./route/diary.Routes.js"; // Corrected import name
+import dairyRoutes from "./route/dairy.Routes.js"; // Corrected import name
 
 const startServer = async () => {
   dotenv.config();
@@ -46,7 +46,7 @@ const startServer = async () => {
     app.use("/api/artworks", artworkRoutes);
     app.use("/api/chat", chatRoutes);
     app.use("/api/customers", customerRoutes);
-    app.use("/api/diary", diaryRoutes); // Corrected route path
+    app.use("/api/dairy", dairyRoutes); // Corrected route path
     app.use("/api/events", eventRoutes);
     app.use("/api/profiles", profileRoutes);
     app.use("/api/settings", settingsRoutes);
