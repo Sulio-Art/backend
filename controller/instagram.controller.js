@@ -119,7 +119,7 @@ export const getInstagramProfile = async (req, res) => {
     }
     
     if (user.instagramTokenExpiresAt < sevenDaysFromNow) {
-      console.log([Instagram Token Refresh]: Token for user ${user.username} is nearing expiration. Attempting refresh.);
+      console.log(`[Instagram Token Refresh]: Token for user ${user.username} is nearing expiration. Attempting refresh.`);
       try {
         const refreshTokenUrl = `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${user.instagramAccessToken}`;
         const refreshResponse = await fetch(refreshTokenUrl);
@@ -133,7 +133,7 @@ export const getInstagramProfile = async (req, res) => {
         user.instagramAccessToken = refreshData.access_token;
         user.instagramTokenExpiresAt = new Date(Date.now() + refreshData.expires_in * 1000);
         await user.save();
-        console.log([Instagram Token Refresh]: Token for user ${user.username} successfully refreshed.);
+        console.log(`[Instagram Token Refresh]: Token for user ${user.username} successfully refreshed.`);
 
       } catch (refreshError) {
         console.error([Instagram Token Refresh]: FAILED to refresh token for user ${user.username}. They may need to reconnect. Error: ${refreshError.message});
