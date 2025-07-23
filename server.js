@@ -46,7 +46,7 @@ const startServer = async () => {
     app.use("/api/artworks", artworkRoutes);
     app.use("/api/chat", chatRoutes);
     app.use("/api/customers", customerRoutes);
-    app.use("/api/dairy", dairyRoutes); // Corrected route path
+    app.use("/api/diary", diaryRoutes); // Corrected route path
     app.use("/api/events", eventRoutes);
     app.use("/api/profiles", profileRoutes);
     app.use("/api/settings", settingsRoutes);
