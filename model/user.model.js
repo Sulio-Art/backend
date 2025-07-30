@@ -43,6 +43,26 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    subscriptionStatus: {
+      type: String,
+      enum: ["free_trial", "active", "inactive", "cancelled","trial_expired"],
+      default: "free_trial",
+    },
+     currentPlan: {
+      type: String,
+      enum: ['basic', 'premium', 'pro'],
+      default: 'basic',
+    },
+
+    
+    trialEndsAt: {
+      type: Date,
+    },
+   subscriptionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subscription',
+      default: null,
+    },
   },
   { timestamps: true }
 );

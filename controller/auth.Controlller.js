@@ -25,6 +25,7 @@ export const register = asyncHandler(async (req, res) => {
 
   const otp = crypto.randomInt(100000, 999999).toString();
   const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   user = new User({
     firstName,
@@ -34,6 +35,8 @@ export const register = asyncHandler(async (req, res) => {
     password,
     otp,
     otpExpires,
+    trialEndsAt,
+    currentPlan: "premium",
   });
 
   await user.save();
@@ -58,7 +61,6 @@ export const register = asyncHandler(async (req, res) => {
     });
   }
 });
-
 
 export const login = asyncHandler(async (req, res) => {
   try {
@@ -104,6 +106,9 @@ export const login = asyncHandler(async (req, res) => {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        subscriptionStatus: user.subscriptionStatus,
+        trialEndsAt: user.trialEndsAt,
+        currentPlan: user.currentPlan,
       },
     });
   } catch (error) {
@@ -114,9 +119,7 @@ export const login = asyncHandler(async (req, res) => {
   }
 });
 
-
 export const requestPasswordReset = asyncHandler(async (req, res) => {
-  
   const { email } = req.body;
   const user = await User.findOne({ email });
   if (!user) {
@@ -125,6 +128,7 @@ export const requestPasswordReset = asyncHandler(async (req, res) => {
   }
   const otp = crypto.randomInt(100000, 999999).toString();
   const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
   user.otp = otp;
   user.otpExpires = otpExpires;
   await user.save();
@@ -158,7 +162,6 @@ export const resetPassword = asyncHandler(async (req, res) => {
     .json({ message: "Password reset successful. You can now login." });
 });
 
-
 export const logout = asyncHandler(async (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
@@ -168,7 +171,6 @@ export const logout = asyncHandler(async (req, res) => {
   });
   res.status(200).json({ message: "Logged out successfully" });
 });
-
 
 export const getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select("-password");
@@ -180,6 +182,9 @@ export const getMe = asyncHandler(async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         phoneNumber: user.phoneNumber,
+        subscriptionStatus: user.subscriptionStatus,
+        trialEndsAt: user.trialEndsAt,
+        currentPlan: user.currentPlan,
       },
     });
   } else {

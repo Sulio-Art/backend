@@ -45,6 +45,28 @@ const protect = asyncHandler(async (req, res, next) => {
         .status(401)
         .json({ message: "User belonging to this token no longer exists" });
     }
+     const now = new Date();
+
+     if (
+       user.subscriptionStatus === "free_trial" &&
+       user.trialEndsAt &&
+       now > user.trialEndsAt
+     ) {
+       console.log(
+         `[BACKEND PROTECT] Trial expired for user: ${user.email}. Downgrading to basic plan.`
+       );
+
+       user = await User.findByIdAndUpdate(
+         user._id,
+         {
+           subscriptionStatus: "trial_expired",
+           currentPlan: "basic",
+         },
+         { new: true }
+       ).select("-password");
+     }
+
+     req.user = user;
 
     console.log("[BACKEND PROTECT] User found. Granting access.");
     next();
