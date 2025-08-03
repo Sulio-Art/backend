@@ -1,17 +1,20 @@
-
 import User from "../model/user.model.js";
 import asyncHandler from "express-async-handler";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import sendEmail from "../utils/sendEmails.js";
+import fetch from "node-fetch";
 
-
+/**
+ * Generates a JWT for your application.
+ * @param {string} id -
+ * @returns {string}
+ */
 export const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 };
-
 
 export const register = asyncHandler(async (req, res) => {
   const { firstName, lastName, email, phoneNumber, password } = req.body;
@@ -66,21 +69,10 @@ export const login = asyncHandler(async (req, res) => {
   try {
     const { email, password } = req.body;
     console.log(`[Login Attempt] For email: ${email}`);
-    if (!process.env.JWT_SECRET) {
-      console.error(
-        "[FATAL] JWT_SECRET is not defined in the environment variables."
-      );
-      return res.status(500).json({
-        message: "Internal server error: Authentication secret not configured.",
-      });
-    }
+
     const user = await User.findOne({ email });
-    if (!user) {
-      console.log(`[Login Failure] No user found for email: ${email}`);
-      return res.status(401).json({ message: "Invalid email or password" });
-    }
-    if (!(await user.comparePassword(password))) {
-      console.log(`[Login Failure] Invalid password for email: ${email}`);
+    if (!user || !(await user.comparePassword(password))) {
+      console.log(`[Login Failure] Invalid credentials for email: ${email}`);
       return res.status(401).json({ message: "Invalid email or password" });
     }
     if (!user.isVerified) {
@@ -89,19 +81,14 @@ export const login = asyncHandler(async (req, res) => {
         message: "Email not verified. Please check your email for an OTP.",
       });
     }
+
     const token = generateToken(user._id);
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
     console.log(`[Login Success] User logged in successfully: ${email}`);
     res.status(200).json({
       message: "Login successful",
       token,
       user: {
-        id: user._id,
+        _id: user._id,
         name: `${user.firstName} ${user.lastName}`,
         email: user.email,
         firstName: user.firstName,
@@ -117,6 +104,153 @@ export const login = asyncHandler(async (req, res) => {
       .status(500)
       .json({ message: "An unexpected internal server error occurred." });
   }
+});
+
+export const loginWithInstagram = asyncHandler(async (req, res) => {
+  const { code } = req.body;
+  if (!code) {
+    res.status(400);
+    throw new Error("Instagram authorization code is required.");
+  }
+
+  console.log("[BACKEND] Received Instagram code. Initiating OAuth flow...");
+
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+  if (!redirectUri) {
+    res.status(500);
+    throw new Error("INSTAGRAM_REDIRECT_URI is not defined in backend .env");
+  }
+
+  const tokenFormData = new URLSearchParams({
+    client_id: process.env.INSTAGRAM_APP_ID,
+    client_secret: process.env.INSTAGRAM_APP_SECRET,
+    grant_type: "authorization_code",
+    redirect_uri: redirectUri,
+    code: code,
+  });
+
+  const tokenResponse = await fetch(
+    "https://api.instagram.com/oauth/access_token",
+    {
+      method: "POST",
+      body: tokenFormData,
+    }
+  );
+  const tokenData = await tokenResponse.json();
+  if (!tokenResponse.ok)
+    throw new Error(
+      tokenData.error_message || "Failed to get token from Instagram."
+    );
+
+  const fields = "id,username,name";
+  const profileResponse = await fetch(
+    `https://graph.instagram.com/me?fields=${fields}&access_token=${tokenData.access_token}`
+  );
+  const profileData = await profileResponse.json();
+  if (!profileResponse.ok)
+    throw new Error(
+      profileData.error.message || "Failed to fetch Instagram profile."
+    );
+
+  let user = await User.findOne({ instagramUserId: profileData.id });
+
+  if (user) {
+    console.log(
+      `Found existing user for Instagram ID ${profileData.id}. Logging in.`
+    );
+    const appToken = generateToken(user._id);
+    res.status(200).json({
+      message: "Instagram login successful",
+      token: appToken,
+      user: {
+        _id: user._id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+      },
+    });
+  } else {
+    console.log(
+      `New user from Instagram ID ${profileData.id}. Initiating profile completion.`
+    );
+    const partialTokenPayload = {
+      instagramId: profileData.id,
+      instagramUsername: profileData.username,
+      firstName: profileData.name
+        ? profileData.name.split(" ")[0]
+        : profileData.username,
+      lastName: profileData.name
+        ? profileData.name.split(" ").slice(1).join(" ")
+        : "",
+    };
+    const completionToken = jwt.sign(
+      partialTokenPayload,
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.status(201).json({
+      message: "User profile needs completion.",
+      completionToken: completionToken,
+      prefill: partialTokenPayload,
+    });
+  }
+});
+
+export const completeInstagramRegistration = asyncHandler(async (req, res) => {
+  const { completionToken, phoneNumber, password } = req.body;
+  if (!completionToken || !phoneNumber || !password) {
+    res.status(400);
+    throw new Error(
+      "Completion token, phone number, and password are required."
+    );
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(completionToken, process.env.JWT_SECRET);
+  } catch (err) {
+    res.status(401);
+    throw new Error("Invalid or expired completion token.");
+  }
+
+  const { instagramId, instagramUsername, firstName, lastName } = decoded;
+
+  let user = await User.findOne({ instagramUserId: instagramId });
+  if (user) {
+    res.status(409); // Conflict
+    throw new Error(
+      "An account is already associated with this Instagram profile."
+    );
+  }
+
+  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  user = new User({
+    firstName,
+    lastName,
+    email: `${instagramUsername}@instagram.placeholder.com`,
+    phoneNumber,
+    password,
+    instagramUserId: instagramId,
+    instagramUsername: instagramUsername,
+    isVerified: true,
+    trialEndsAt,
+    currentPlan: "premium",
+  });
+
+  await user.save();
+  console.log(`Successfully created full user for Instagram ID ${instagramId}`);
+
+  const finalToken = generateToken(user._id);
+
+  res.status(201).json({
+    message: "Registration complete. Welcome!",
+    token: finalToken,
+    user: {
+      _id: user._id,
+      name: `${user.firstName} ${user.lastName}`,
+      email: user.email,
+    },
+  });
 });
 
 export const requestPasswordReset = asyncHandler(async (req, res) => {

@@ -14,8 +14,8 @@ import customerRoutes from "./route/customer.Routes.js";
 import chatRoutes from "./route/chat.Routes.js";
 import diaryRoutes from "./route/dailylogs.Routes.js";
 
+dotenv.config();
 const startServer = async () => {
-  dotenv.config();
   const app = express();
   const PORT = process.env.PORT || 5000;
 

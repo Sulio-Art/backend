@@ -1,4 +1,3 @@
-
 import express from "express";
 import {
   register,
@@ -7,6 +6,8 @@ import {
   resetPassword,
   logout,
   getMe,
+  loginWithInstagram,
+  completeInstagramRegistration,
 } from "../controller/auth.Controlller.js";
 import {
   connectInstagramAccount,
@@ -20,16 +21,19 @@ const router = express.Router();
 
 router.post("/register", register);
 router.post("/verify-otp", verifyUserOtp);
-
-
 router.post("/login", login);
 router.post("/logout", logout);
-router.get("/me", protect, getMe);
-
-
 router.post("/request-password-reset", requestPasswordReset);
 router.post("/reset-password", resetPassword);
 
+
+router.post("/instagram/login", loginWithInstagram);
+
+
+router.post("/instagram/complete-registration", completeInstagramRegistration);
+
+
+router.get("/me", protect, getMe);
 
 router.post("/instagram/connect", protect, connectInstagramAccount);
 router.get("/instagram/profile", protect, getInstagramProfile); 
