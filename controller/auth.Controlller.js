@@ -5,11 +5,6 @@ import crypto from "crypto";
 import sendEmail from "../utils/sendEmails.js";
 import fetch from "node-fetch";
 
-/**
- * Generates a JWT for your application.
- * @param {string} id -
- * @returns {string}
- */
 export const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
@@ -137,26 +132,36 @@ export const loginWithInstagram = asyncHandler(async (req, res) => {
     }
   );
   const tokenData = await tokenResponse.json();
-  if (!tokenResponse.ok)
+  if (!tokenResponse.ok) {
     throw new Error(
       tokenData.error_message || "Failed to get token from Instagram."
     );
+  }
+
+  const shortLivedToken = tokenData.access_token;
+  const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedToken}`;
+  const longLivedTokenResponse = await fetch(longLivedTokenUrl);
+  const longLivedTokenData = await longLivedTokenResponse.json();
+  const longLivedToken = longLivedTokenData.access_token || shortLivedToken;
 
   const fields = "id,username,name";
   const profileResponse = await fetch(
-    `https://graph.instagram.com/me?fields=${fields}&access_token=${tokenData.access_token}`
+    `https://graph.instagram.com/me?fields=${fields}&access_token=${longLivedToken}`
   );
   const profileData = await profileResponse.json();
-  if (!profileResponse.ok)
+  if (!profileResponse.ok) {
     throw new Error(
       profileData.error.message || "Failed to fetch Instagram profile."
     );
+  }
 
   let user = await User.findOne({ instagramUserId: profileData.id });
 
   if (user) {
+    user.instagramAccessToken = longLivedToken;
+    await user.save();
     console.log(
-      `Found existing user for Instagram ID ${profileData.id}. Logging in.`
+      `Found existing user for IG ID ${profileData.id}. Token updated.`
     );
     const appToken = generateToken(user._id);
     res.status(200).json({
@@ -181,6 +186,7 @@ export const loginWithInstagram = asyncHandler(async (req, res) => {
       lastName: profileData.name
         ? profileData.name.split(" ").slice(1).join(" ")
         : "",
+      instagramAccessToken: longLivedToken,
     };
     const completionToken = jwt.sign(
       partialTokenPayload,
@@ -191,18 +197,27 @@ export const loginWithInstagram = asyncHandler(async (req, res) => {
     res.status(201).json({
       message: "User profile needs completion.",
       completionToken: completionToken,
-      prefill: partialTokenPayload,
+      prefill: {
+        firstName: partialTokenPayload.firstName,
+        lastName: partialTokenPayload.lastName,
+      },
     });
   }
 });
 
 export const completeInstagramRegistration = asyncHandler(async (req, res) => {
-  const { completionToken, phoneNumber, password } = req.body;
-  if (!completionToken || !phoneNumber || !password) {
+  const { completionToken, phoneNumber, password, firstName, lastName, email } =
+    req.body;
+  if (
+    !completionToken ||
+    !phoneNumber ||
+    !password ||
+    !firstName ||
+    !lastName ||
+    !email
+  ) {
     res.status(400);
-    throw new Error(
-      "Completion token, phone number, and password are required."
-    );
+    throw new Error("All fields and completion token are required.");
   }
 
   let decoded;
@@ -213,25 +228,29 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
     throw new Error("Invalid or expired completion token.");
   }
 
-  const { instagramId, instagramUsername, firstName, lastName } = decoded;
+  const { instagramId, instagramUsername, instagramAccessToken } = decoded;
 
-  let user = await User.findOne({ instagramUserId: instagramId });
+  let user = await User.findOne({
+    $or: [{ instagramUserId: instagramId }, { email: email }],
+  });
   if (user) {
-    res.status(409); // Conflict
+    res.status(409);
     throw new Error(
-      "An account is already associated with this Instagram profile."
+      "An account is already associated with this Instagram profile or email."
     );
   }
 
   const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
   user = new User({
     firstName,
     lastName,
-    email: `${instagramUsername}@instagram.placeholder.com`,
+    email,
     phoneNumber,
     password,
     instagramUserId: instagramId,
     instagramUsername: instagramUsername,
+    instagramAccessToken: instagramAccessToken,
     isVerified: true,
     trialEndsAt,
     currentPlan: "premium",
