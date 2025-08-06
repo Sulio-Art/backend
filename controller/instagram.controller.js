@@ -1,12 +1,19 @@
-
-
 import fetch from "node-fetch";
 import User from "../model/user.model.js";
-import { generateToken } from "./auth.Controlller.js";
 
 export const connectInstagramAccount = async (req, res) => {
   const { code } = req.body;
   const loggedInUserId = req.user.id;
+
+  if (!code) {
+    res.status(400);
+    throw new Error("Instagram authorization code is required.");
+  }
+
+  if (!loggedInUserId) {
+    res.status(401);
+    throw new Error("User must be logged in to connect an account.");
+  }
 
   try {
     const appId = process.env.INSTAGRAM_APP_ID;
@@ -34,14 +41,29 @@ export const connectInstagramAccount = async (req, res) => {
       }
     );
 
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      throw new Error(`Instagram API Error: ${errorText}`);
-    }
-
     const tokenData = await tokenResponse.json();
 
-    const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${tokenData.access_token}`;
+    if (!tokenResponse.ok) {
+      throw new Error(
+        tokenData.error_message ||
+          `Instagram API Error: ${tokenResponse.statusText}`
+      );
+    }
+
+    let shortLivedToken, instagramAppScopedId;
+    if (tokenData.data && tokenData.data.length > 0) {
+      shortLivedToken = tokenData.data[0].access_token;
+      instagramAppScopedId = tokenData.data[0].user_id;
+    } else if (tokenData.access_token && tokenData.user_id) {
+      shortLivedToken = tokenData.access_token;
+      instagramAppScopedId = tokenData.user_id;
+    } else {
+      throw new Error(
+        "Could not find access_token and user_id in Instagram response."
+      );
+    }
+
+    const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${shortLivedToken}`;
     const longLivedTokenResponse = await fetch(longLivedTokenUrl);
     const longLivedTokenData = await longLivedTokenResponse.json();
     if (!longLivedTokenResponse.ok) {
@@ -50,9 +72,11 @@ export const connectInstagramAccount = async (req, res) => {
       );
     }
 
+    const longLivedToken = longLivedTokenData.access_token;
+
     const fields =
       "id,username,profile_picture_url,followers_count,biography,website";
-    const profileApiUrl = `https://graph.instagram.com/${tokenData.user_id}?fields=${fields}&access_token=${longLivedTokenData.access_token}`;
+    const profileApiUrl = `https://graph.instagram.com/${instagramAppScopedId}?fields=${fields}&access_token=${longLivedToken}`;
     const profileResponse = await fetch(profileApiUrl);
     const profileData = await profileResponse.json();
     if (!profileResponse.ok) {
@@ -63,22 +87,17 @@ export const connectInstagramAccount = async (req, res) => {
 
     await User.findByIdAndUpdate(loggedInUserId, {
       instagramUserId: profileData.id,
-      instagramAccessToken: longLivedTokenData.access_token,
+      instagramAccessToken: longLivedToken,
       instagramUsername: profileData.username,
-      instagramProfilePictureUrl: profileData.profile_picture_url,
-      instagramFollowersCount: profileData.followers_count,
-      instagramBio: profileData.biography,
-      instagramWebsite: profileData.website,
+      instagramProfilePictureUrl: profileData.profile_picture_url || null,
+      instagramFollowersCount: profileData.followers_count || 0,
+      instagramBio: profileData.biography || null,
+      instagramWebsite: profileData.website || null,
     });
-
-   
-    const permanentToken = generateToken(req.user.id);
 
     res.status(200).json({
       success: true,
       message: "Instagram account connected successfully.",
-      token: permanentToken, 
-      user: req.user,
     });
   } catch (error) {
     console.error(

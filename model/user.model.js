@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    phoneNumber: { type: String, required: true, unique: true },
+    phoneNumber: { type: String, required: false },
     password: { type: String, required: true },
     isVerified: { type: Boolean, default: false },
     otp: String,
@@ -45,22 +45,20 @@ const userSchema = new mongoose.Schema(
     },
     subscriptionStatus: {
       type: String,
-      enum: ["free_trial", "active", "inactive", "cancelled","trial_expired"],
+      enum: ["free_trial", "active", "inactive", "cancelled", "trial_expired"],
       default: "free_trial",
     },
-     currentPlan: {
+    currentPlan: {
       type: String,
-      enum: ['basic', 'premium', 'pro'],
-      default: 'basic',
+      enum: ["basic", "premium", "pro"],
+      default: "basic",
     },
-
-    
     trialEndsAt: {
       type: Date,
     },
-   subscriptionId: {
+    subscriptionId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subscription',
+      ref: "Subscription",
       default: null,
     },
   },
