@@ -1,117 +1,143 @@
 import DiaryEntry from '../model/diaryEntry.Model.js';
 import mongoose from 'mongoose';
+import cloudinary from "../middleware/cloudinery.middleware.js";
+import asyncHandler from "express-async-handler";
 
-const createDiaryEntry = async (req, res) => {
-  try {
-    const { date, mood, content } = req.body;
+const createDiaryEntry = asyncHandler(async (req, res) => {
+  const { date, category, subject, description, studioLife } = req.body;
 
-    if (!content) {
-      return res.status(400).json({ message: 'Content is required for a diary entry' });
-    }
+  if (!date || !category) {
+    res.status(400);
+    throw new Error("Date and Category are required fields.");
+  }
 
-    const userId = req.user.id;
+  if (!req.files || req.files.length === 0) {
+    res.status(400);
+    throw new Error("At least one artwork photo is required.");
+  }
 
-    const newEntry = new DiaryEntry({
-      userId,
-      date,
-      mood,
-      content,
+  const uploadPromises = req.files.map((file) => {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: "diary_entries" },
+        (error, result) => {
+          if (error) return reject(error);
+
+          resolve({ url: result.secure_url, public_id: result.public_id });
+        }
+      );
+      uploadStream.end(file.buffer);
     });
+  });
 
-    const savedEntry = await newEntry.save();
-    res.status(201).json(savedEntry);
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
+  const uploadedFiles = await Promise.all(uploadPromises);
+
+  const newEntry = new DiaryEntry({
+    userId: req.user.id,
+    date,
+    category,
+    subject,
+    description,
+    studioLife,
+    artworkPhotos: uploadedFiles,
+  });
+
+  const savedEntry = await newEntry.save();
+  res.status(201).json(savedEntry);
+});
+
+const getMyDiaryEntries = asyncHandler(async (req, res) => {
+  const entries = await DiaryEntry.find({ userId: req.user.id }).sort({
+    date: -1,
+  });
+  res.status(200).json(entries);
+});
+
+const getDiaryEntryById = asyncHandler(async (req, res) => {
+  const entryId = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(entryId)) {
+    res.status(400);
+    throw new Error("Invalid Diary Entry ID");
   }
-};
 
+  const entry = await DiaryEntry.findById(entryId);
 
-const getMyDiaryEntries = async (req, res) => {
-  try {
-    const entries = await DiaryEntry.find({ userId: req.user.id }).sort({ date: -1 });
-    res.status(200).json(entries);
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
+  if (!entry || entry.userId.toString() !== req.user.id) {
+    res.status(404);
+    throw new Error("Diary entry not found");
   }
-};
 
-const getDiaryEntryById = async (req, res) => {
-  try {
-    const entryId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(entryId)) {
-        return res.status(400).json({ message: 'Invalid Diary Entry ID' });
-    }
+  res.status(200).json(entry);
+});
 
-    const entry = await DiaryEntry.findById(entryId);
+const updateDiaryEntry = asyncHandler(async (req, res) => {
+  const { date, category, subject, description, studioLife } = req.body;
+  const entryId = req.params.id;
 
-    if (!entry) {
-      return res.status(404).json({ message: 'Diary entry not found' });
-    }
+  const entry = await DiaryEntry.findById(entryId);
 
-    if (entry.userId.toString() !== req.user.id) {
-      return res.status(404).json({ message: 'Diary entry not found' }); 
-    }
-
-    res.status(200).json(entry);
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
+  if (!entry || entry.userId.toString() !== req.user.id) {
+    res.status(404);
+    throw new Error("Diary entry not found");
   }
-};
 
-
-const updateDiaryEntry = async (req, res) => {
-  try {
-    const entryId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(entryId)) {
-        return res.status(400).json({ message: 'Invalid Diary Entry ID' });
+  if (req.files && req.files.length > 0) {
+    if (entry.artworkPhotos && entry.artworkPhotos.length > 0) {
+      const publicIds = entry.artworkPhotos.map((photo) => photo.public_id);
+      await cloudinary.api.delete_resources(publicIds);
     }
 
-    const { date, mood, content } = req.body;
-    const entry = await DiaryEntry.findById(entryId);
-
-    if (!entry) {
-      return res.status(404).json({ message: 'Diary entry not found' });
-    }
-    
-    if (entry.userId.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'User not authorized to update this entry' });
-    }
-
-    entry.date = date || entry.date;
-    entry.mood = mood || entry.mood;
-    entry.content = content || entry.content;
-
-    const updatedEntry = await entry.save();
-    res.status(200).json(updatedEntry);
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
+    const uploadPromises = req.files.map((file) => {
+      return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "diary_entries" },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve({ url: result.secure_url, public_id: result.public_id });
+          }
+        );
+        uploadStream.end(file.buffer);
+      });
+    });
+    const uploadedFiles = await Promise.all(uploadPromises);
+    entry.artworkPhotos = uploadedFiles;
   }
-};
 
+  entry.date = date || entry.date;
+  entry.category = category || entry.category;
+  entry.subject = subject;
+  entry.description = description;
+  entry.studioLife = studioLife;
 
-const deleteDiaryEntry = async (req, res) => {
-  try {
-    const entryId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(entryId)) {
-        return res.status(400).json({ message: 'Invalid Diary Entry ID' });
-    }
-    
-    const entry = await DiaryEntry.findById(entryId);
+  const updatedEntry = await entry.save();
+  res.status(200).json(updatedEntry);
+});
 
-    if (!entry) {
-      return res.status(404).json({ message: 'Diary entry not found' });
-    }
-    
-    if (entry.userId.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'User not authorized to delete this entry' });
-    }
-
-    await DiaryEntry.findByIdAndDelete(entryId);
-    res.status(200).json({ message: 'Diary entry deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
+const deleteDiaryEntry = asyncHandler(async (req, res) => {
+  const entryId = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(entryId)) {
+    res.status(400);
+    throw new Error("Invalid Diary Entry ID");
   }
-};
+
+  const entry = await DiaryEntry.findById(entryId);
+
+  if (!entry || entry.userId.toString() !== req.user.id) {
+    res.status(404);
+    throw new Error("Diary entry not found");
+  }
+
+  if (entry.artworkPhotos && entry.artworkPhotos.length > 0) {
+    const publicIds = entry.artworkPhotos.map((photo) => photo.public_id);
+    await cloudinary.api.delete_resources(publicIds);
+  }
+
+  await DiaryEntry.findByIdAndDelete(entryId);
+
+  res
+    .status(200)
+    .json({ message: "Diary entry deleted successfully", deletedId: entryId });
+});
 
 export {
   createDiaryEntry,
