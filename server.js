@@ -4,7 +4,7 @@ import cors from "cors";
 import connectDB from "./conifg/database.js";
 import cookieParser from "cookie-parser";
 import errorHandler from "./middleware/errorHandler.js";
-
+import transactionRoutes from "./route/transaction.Routes.js";
 import authRoutes from "./route/auth.Routes.js";
 import artworkRoutes from "./route/artwork.Routes.js";
 import eventRoutes from "./route/event.Routes.js";
@@ -28,9 +28,13 @@ const startServer = async () => {
 
     const corsOptions = {
       origin: (origin, callback) => {
+        console.log(`[CORS] Request from origin: ${origin}`);
+        console.log(`[CORS] Allowed origins: ${allowedOrigins}`);
+
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
           callback(null, true);
         } else {
+          console.error(`[CORS] Blocked origin: ${origin}`);
           callback(new Error(`Origin '${origin}' not allowed by CORS`));
         }
       },
@@ -52,6 +56,7 @@ const startServer = async () => {
     app.use("/api/events", eventRoutes);
     app.use("/api/profiles", profileRoutes);
     app.use("/api/settings", settingsRoutes);
+    app.use("/api/transactions", transactionRoutes);
 
     app.get("/", (req, res) => {
       res.send("Sulio Art API is running...");

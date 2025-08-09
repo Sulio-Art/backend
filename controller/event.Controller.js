@@ -17,8 +17,20 @@ const createEvent = async (req, res) => {
 
 const getAllEvents = async (req, res) => {
   try {
-    const events = await Event.find({}).populate('participants', 'name email').sort({ date: 1 });
-    res.status(200).json(events);
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10; // You can adjust the limit
+    const skip = (page - 1) * limit;
+
+    const totalEvents = await Event.countDocuments({});
+    const totalPages = Math.ceil(totalEvents / limit);
+
+    const events = await Event.find({})
+      .populate("participants", "name email")
+      .sort({ date: -1 }) // Sort by most recent date
+      .skip(skip)
+      .limit(limit);
+
+    res.status(200).json({ events, currentPage: page, totalPages });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }

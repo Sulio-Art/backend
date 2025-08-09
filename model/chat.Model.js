@@ -1,13 +1,22 @@
 import mongoose from 'mongoose';
 
-const ChatSchema = new mongoose.Schema({
+const chatSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
     query: { type: String, required: true },
     igid: { type: String, required: true },
     task: { type: String, required: true },
-    response: { type: String, required: true },
-    summary: { type: String, required: true }
-}, { timestamps: true });
+    response: { type: String },
+    summary: { type: String },
+  },
+  { timestamps: true }
+);
 
-const Chat = mongoose.model('Chat', ChatSchema);
+chatSchema.index({ userId: 1, createdAt: -1 });
 
-export default Chat;
+export default mongoose.model("Chat", chatSchema);

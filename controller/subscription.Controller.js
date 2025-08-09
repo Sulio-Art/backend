@@ -10,9 +10,11 @@ const razorpay = new Razorpay({
 
 const createSubscriptionOrder = async (req, res) => {
   try {
-    const { amount, plan } = req.body;
-    if (!amount || !plan) {
-      return res.status(400).json({ message: "Amount and plan are required" });
+    const { amount, plan, billingCycle } = req.body;
+    if (!amount || !plan || !billingCycle) {
+      return res
+        .status(400)
+        .json({ message: "Amount, plan, and billingCycle are required" });
     }
 
     const options = {
@@ -27,6 +29,7 @@ const createSubscriptionOrder = async (req, res) => {
         userId: req.user.id,
         amount,
         plan,
+        billingCycle,
         razorpayOrderId: order.id,
         status: "pending",
       },
@@ -69,13 +72,12 @@ const verifySubscriptionPayment = async (req, res) => {
     subscription.razorpaySignature = razorpay_signature;
     subscription.status = "active";
     subscription.startDate = new Date();
-    const endDate = new Date();
-    if (
-      subscription.plan === "basic" ||
-      subscription.plan === "premium" ||
-      subscription.plan === "pro"
-    ) {
+
+    const endDate = new Date(subscription.startDate);
+    if (subscription.billingCycle === "yearly") {
       endDate.setFullYear(endDate.getFullYear() + 1);
+    } else {
+      endDate.setMonth(endDate.getMonth() + 1);
     }
     subscription.endDate = endDate;
 

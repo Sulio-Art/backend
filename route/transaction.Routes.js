@@ -5,7 +5,7 @@ import {
   getMyTransactions,
   getTransactionById,
   getAllTransactions,
-} from '../controllers/transaction.controller.js';
+} from "../controller/transaction.Controller.js";
 
 const protect = (req, res, next) => {
   req.user = { id: '655e6e3c5a7a6e1f4b8f3a3a' };

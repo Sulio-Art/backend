@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 const { Schema, model, Types } = mongoose;
+
 const artworkSchema = new Schema({
   title: { type: String, required: true },
   description: String,
@@ -7,6 +8,8 @@ const artworkSchema = new Schema({
   category: String,
   createdBy: { type: Types.ObjectId, ref: "User", required: true },
   createdAt: { type: Date, default: Date.now },
+
+  size: { type: Number, required: true },
 });
 
 export default model("Artwork", artworkSchema);

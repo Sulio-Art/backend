@@ -64,8 +64,31 @@ const capturePayPalPayment = async (req, res) => {
 
 const getMyTransactions = async (req, res) => {
   try {
-    const transactions = await Transaction.find({ userId: req.user.id }).sort({ createdAt: -1 });
-    res.status(200).json(transactions);
+    // Subscription Plan Check
+    const userPlan = req.user.currentPlan || "free";
+    if (userPlan === "free" || userPlan === "trial_expired") {
+      return res
+        .status(403)
+        .json({
+          message:
+            "Access denied. Please upgrade your plan to view transaction history.",
+        });
+    }
+
+    // Pagination Logic
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const skip = (page - 1) * limit;
+
+    const total = await Transaction.countDocuments({ userId: req.user.id });
+    const totalPages = Math.ceil(total / limit);
+
+    const transactions = await Transaction.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.status(200).json({ transactions, currentPage: page, totalPages });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
