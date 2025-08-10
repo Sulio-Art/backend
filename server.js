@@ -5,14 +5,15 @@ import connectDB from "./conifg/database.js";
 import cookieParser from "cookie-parser";
 import errorHandler from "./middleware/errorHandler.js";
 import transactionRoutes from "./route/transaction.Routes.js";
+import dashboardRoutes from "./route/dashboard.Routes.js";
 import authRoutes from "./route/auth.Routes.js";
 import artworkRoutes from "./route/artwork.Routes.js";
 import eventRoutes from "./route/event.Routes.js";
 import profileRoutes from "./route/profile.Routes.js";
-import settingsRoutes from "./route/setting.Routes.js";
 import customerRoutes from "./route/customer.Routes.js";
 import chatRoutes from "./route/chat.Routes.js";
 import diaryRoutes from "./route/dailylogs.Routes.js";
+import adminRoutes from "./route/admin.Routes.js";
 
 dotenv.config();
 const startServer = async () => {
@@ -54,9 +55,10 @@ const startServer = async () => {
     app.use("/api/customers", customerRoutes);
     app.use("/api/diary", diaryRoutes);
     app.use("/api/events", eventRoutes);
-    app.use("/api/profiles", profileRoutes);
-    app.use("/api/settings", settingsRoutes);
+    app.use("/profiles", profileRoutes);
+    app.use("/api/dashboard", dashboardRoutes);
     app.use("/api/transactions", transactionRoutes);
+    app.use("/api/admin", adminRoutes);
 
     app.get("/", (req, res) => {
       res.send("Sulio Art API is running...");

@@ -1,5 +1,6 @@
 import Chat from '../model/chat.Model.js';
 import User from "../model/user.model.js";
+import Profile from "../model/profile.Model.js";
 import { callChatbot } from "../services/chatbotService.js";
 
 const PLAN_QUERY_LIMITS = {
@@ -11,6 +12,11 @@ const PLAN_QUERY_LIMITS = {
   pro: Infinity,
 };
 
+/**
+ * @desc    Handle an incoming chat message from a customer via Instagram
+ * @route   POST /api/chat/
+ * @access  Public (via webhook)
+ */
 export const handleChat = async (req, res) => {
   try {
     const { query, task } = req.body;
@@ -67,10 +73,14 @@ export const handleChat = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get the logged-in artist's own chat history
+ * @route   GET /api/chat/history
+ * @access  Private
+ */
 export const getChatHistory = async (req, res) => {
   try {
     const userId = req.user.id;
-
     const chatHistory = await Chat.find({ userId }).sort({ createdAt: -1 });
 
     if (!chatHistory.length) {
@@ -85,5 +95,38 @@ export const getChatHistory = async (req, res) => {
     res
       .status(500)
       .json({ error: "Error fetching chat history", message: error.message });
+  }
+};
+
+/**
+ * @desc    Save a chatbot setting for the logged-in user
+ * @route   POST /api/chat/settings
+ * @access  Private
+ */
+export const saveChatbotSetting = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { setting, value } = req.body;
+
+    if (!setting || value === undefined) {
+      return res
+        .status(400)
+        .json({ message: "Setting and value are required." });
+    }
+
+   
+
+    await Profile.findOneAndUpdate(
+      { userId },
+      { isChatbotConfigured: true },
+      { upsert: true, new: true }
+    );
+
+    res
+      .status(200)
+      .json({ message: `Setting '${setting}' saved successfully.` });
+  } catch (error) {
+    console.error("Save Chatbot Setting Error:", error.message);
+    res.status(500).json({ message: "Server Error" });
   }
 };

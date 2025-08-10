@@ -19,4 +19,4 @@ const chatSchema = new mongoose.Schema(
 
 chatSchema.index({ userId: 1, createdAt: -1 });
 
-export default mongoose.model("Chat", chatSchema);
+export default mongoose.models.Chat || mongoose.model('Chat', chatSchema);

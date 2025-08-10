@@ -12,4 +12,5 @@ const transactionSchema = new mongoose.Schema({
   details: mongoose.Schema.Types.Mixed,
 }, { timestamps: true });
 
-export default mongoose.model('Transaction', transactionSchema);
+export default mongoose.models.Transaction ||
+  mongoose.model("Transaction", transactionSchema);

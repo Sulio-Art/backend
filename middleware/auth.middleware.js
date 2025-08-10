@@ -54,5 +54,14 @@ const protect = asyncHandler(async (req, res, next) => {
     res.status(401).json({ message: "Token is not valid" });
   }
 });
+const isAdmin = (req, res, next) => {
 
-export { protect };
+  if (req.user && req.user.role === "admin") {
+    next(); 
+  } else {
+    res.status(403);
+    throw new Error("Not authorized as an admin");
+  }
+};
+
+export { protect, isAdmin };

@@ -11,21 +11,22 @@ import { protect } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// This route correctly requires admin privileges.
+
+const profileUploads = upload.fields([
+    { name: 'profilePicture', maxCount: 1 },
+    { name: 'coverPhoto', maxCount: 1 }
+]);
+
+
 router.get('/', protect, getAllProfiles); 
 
-//
-// THIS IS THE DEFINITIVE FIX:
-// The route for a user to get their OWN profile should ONLY use 'protect'.
-//
+
 router.route('/me')
-  .get(protect, getMyProfile) // <-- 'admin' has been permanently removed.
-  .post(protect, upload.single('profilePicture'), createOrUpdateMyProfile)
-  .put(protect, upload.single('profilePicture'), createOrUpdateMyProfile)
+  .get(protect, getMyProfile)
+  .put(protect, profileUploads, createOrUpdateMyProfile) 
   .delete(protect, deleteMyProfile);
 
 
-// This route correctly allows any logged-in user to view another user's profile.
 router.get('/user/:userId', protect, getProfileByUserId);
 
 export default router;

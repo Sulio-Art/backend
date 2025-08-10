@@ -1,16 +1,12 @@
 import cloudinary from "../middleware/cloudinery.middleware.js";
 import streamifier from "streamifier";
 import Profile from "../model/profile.Model.js";
-
+import User from "../model/user.model.js";
 import mongoose from "mongoose";
 
-/**
- * @desc    Create or update the logged-in user's profile
- * @route   PUT /api/profiles/me
- * @access  Private
- */
 const createOrUpdateMyProfile = async (req, res) => {
-  const { bio, website, location, instagram, twitter, portfolio } = req.body;
+  const { bio, website, location, instagram, twitter, portfolio, phoneNumber } =
+    req.body;
   const profileFields = {
     userId: req.user.id,
     bio,
@@ -20,28 +16,52 @@ const createOrUpdateMyProfile = async (req, res) => {
   };
 
   try {
-    // Handle Profile Picture Upload if a file is present
-    if (req.file) {
-      const result = await new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "profile-pictures" },
-          (error, result) => {
-            if (error) return reject(error);
-            resolve(result);
-          }
-        );
-        streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
-      });
-      profileFields.profilePicture = result.secure_url;
+    if (req.files) {
+      if (req.files.profilePicture) {
+        const result = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "profile-pictures" },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          );
+          streamifier
+            .createReadStream(req.files.profilePicture[0].buffer)
+            .pipe(uploadStream);
+        });
+        profileFields.profilePicture = result.secure_url;
+      }
+      if (req.files.coverPhoto) {
+        const result = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "cover-photos" },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          );
+          streamifier
+            .createReadStream(req.files.coverPhoto[0].buffer)
+            .pipe(uploadStream);
+        });
+        profileFields.coverPhoto = result.secure_url;
+      }
     }
 
-    // Using findOneAndUpdate with upsert:true will create a new profile if one doesn't exist,
-    // or update the existing one if it does.
+    if (phoneNumber !== undefined) {
+      await User.findByIdAndUpdate(req.user.id, { phoneNumber });
+    }
+
     let profile = await Profile.findOneAndUpdate(
       { userId: req.user.id },
       { $set: profileFields },
       { new: true, upsert: true, setDefaultsOnInsert: true }
-    ).populate("userId", "firstName lastName email");
+      // --- UPDATED: Added 'phoneNumber' to the populate list ---
+    ).populate(
+      "userId",
+      "firstName lastName email instagramUsername phoneNumber"
+    );
 
     res.status(200).json(profile);
   } catch (error) {
@@ -50,17 +70,13 @@ const createOrUpdateMyProfile = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get the logged-in user's own profile (creates a default if none exists)
- * @route   GET /api/profiles/me
- * @access  Private
- */
 const getMyProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     let profile = await Profile.findOne({ userId: userId }).populate(
       "userId",
-      "firstName lastName email"
+
+      "firstName lastName email instagramUsername phoneNumber"
     );
 
     if (!profile) {
@@ -72,7 +88,11 @@ const getMyProfile = async (req, res) => {
         bio: "Welcome to my profile! I'm excited to share my art.",
       });
       await profile.save();
-      await profile.populate("userId", "firstName lastName email");
+
+      await profile.populate(
+        "userId",
+        "firstName lastName email instagramUsername phoneNumber"
+      );
     }
 
     res.status(200).json(profile);
@@ -82,11 +102,6 @@ const getMyProfile = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get a user's profile by their user ID
- * @route   GET /api/profiles/user/:userId
- * @access  Public
- */
 const getProfileByUserId = async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
@@ -95,7 +110,8 @@ const getProfileByUserId = async (req, res) => {
 
     const profile = await Profile.findOne({
       userId: req.params.userId,
-    }).populate("userId", "firstName lastName email");
+      
+    }).populate("userId", "firstName lastName email phoneNumber");
 
     if (!profile) {
       return res.status(404).json({ message: "Profile not found" });
@@ -108,16 +124,12 @@ const getProfileByUserId = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get all user profiles
- * @route   GET /api/profiles
- * @access  Public
- */
 const getAllProfiles = async (req, res) => {
   try {
     const profiles = await Profile.find().populate(
       "userId",
-      "firstName lastName email"
+
+      "firstName lastName email phoneNumber"
     );
     res.status(200).json(profiles);
   } catch (error) {
@@ -126,22 +138,13 @@ const getAllProfiles = async (req, res) => {
   }
 };
 
-/**
- * @desc    Delete the logged-in user's profile
- * @route   DELETE /api/profiles/me
- * @access  Private
- */
 const deleteMyProfile = async (req, res) => {
   try {
-    // Find and delete the profile
     const profile = await Profile.findOneAndDelete({ userId: req.user.id });
 
     if (!profile) {
       return res.status(404).json({ message: "Profile not found to delete." });
     }
-
-    // Here you could also add logic to delete the user's account from the User model if desired.
-    // For now, we only delete the profile.
 
     res.status(200).json({ message: "Profile deleted successfully" });
   } catch (error) {

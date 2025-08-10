@@ -7,7 +7,13 @@ const createEvent = async (req, res) => {
     if (!title || !date) {
       return res.status(400).json({ message: 'Title and date are required' });
     }
-    const newEvent = new Event({ title, description, date, location });
+    const newEvent = new Event({
+      title,
+      description,
+      date,
+      location,
+      userId: req.user.id,
+    });
     const savedEvent = await newEvent.save();
     res.status(201).json(savedEvent);
   } catch (error) {
@@ -18,7 +24,7 @@ const createEvent = async (req, res) => {
 const getAllEvents = async (req, res) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10; // You can adjust the limit
+    const limit = parseInt(req.query.limit, 10) || 10; 
     const skip = (page - 1) * limit;
 
     const totalEvents = await Event.countDocuments({});
@@ -26,7 +32,7 @@ const getAllEvents = async (req, res) => {
 
     const events = await Event.find({})
       .populate("participants", "name email")
-      .sort({ date: -1 }) // Sort by most recent date
+      .sort({ date: -1 })    // TODO: need time too
       .skip(skip)
       .limit(limit);
 
