@@ -12,6 +12,7 @@ import {
   completeInstagramRegistration,
   sendVerificationOtp,
   verifyHeroOtp,
+  checkEmailExists,
 } from "../controller/auth.Controlller.js";
 import {
   connectInstagramAccount,
@@ -36,6 +37,7 @@ router.post("/reset-password", resetPassword);
 
 router.post("/instagram/login", loginWithInstagram);
 router.post("/instagram/complete-registration", completeInstagramRegistration);
+router.post("/check-email", checkEmailExists);
 
 router.get("/me", protect, getMe);
 

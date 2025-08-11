@@ -6,11 +6,120 @@ import crypto from "crypto";
 import sendEmail from "../utils/sendEmails.js";
 import fetch from "node-fetch";
 
+
 export const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 };
+
+
+export const checkEmailExists = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    res.status(400);
+    throw new Error("Email is required.");
+  }
+  const user = await User.findOne({ email });
+  res.status(200).json({ exists: !!user });
+});
+
+
+export const register = asyncHandler(async (req, res) => {
+  const { firstName, lastName, email, password, isEmailPreverified } = req.body;
+  let user = await User.findOne({ email });
+  if (user) {
+    res.status(409);
+    throw new Error(
+      "An account with this email already exists. Please log in."
+    );
+  }
+
+  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  if (isEmailPreverified) {
+    user = new User({
+      firstName,
+      lastName,
+      email,
+      password,
+      isVerified: true,
+      trialEndsAt,
+      currentPlan: "premium",
+    });
+    await user.save();
+    const token = generateToken(user._id);
+    res.status(201).json({
+      message: "Registration successful! Redirecting you...",
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+      },
+    });
+  } else {
+   
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    user = new User({
+      firstName,
+      lastName,
+      email,
+      password,
+      otp,
+      otpExpires,
+      trialEndsAt,
+      currentPlan: "premium",
+    });
+    await user.save();
+    try {
+      await sendEmail(
+        email,
+        "Verify Your Email for Sulio AI",
+        `Your verification OTP is: ${otp}\nThis code will expire in 10 minutes.`
+      );
+      res.status(201).json({
+        message: "Registration successful. An OTP has been sent to your email.",
+      });
+    } catch (emailError) {
+      res.status(500);
+      throw new Error(
+        "Registration successful, but there was an issue sending the OTP email."
+      );
+    }
+  }
+});
+
+
+export const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+  if (!user || !(await user.comparePassword(password))) {
+    return res.status(401).json({ message: "Invalid email or password" });
+  }
+  if (!user.isVerified) {
+    return res.status(401).json({
+      message: "Email not verified. Please check your email for an OTP.",
+    });
+  }
+  const token = generateToken(user._id);
+  res.status(200).json({
+    message: "Login successful",
+    token,
+    user: {
+      _id: user._id,
+      name: `${user.firstName} ${user.lastName}`,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      subscriptionStatus: user.subscriptionStatus,
+      trialEndsAt: user.trialEndsAt,
+      currentPlan: user.currentPlan,
+      instagramUserId: user.instagramUserId,
+      role: user.role,
+    },
+  });
+});
+
 
 export const sendVerificationOtp = asyncHandler(async (req, res) => {
   const { email } = req.body;
@@ -44,6 +153,7 @@ export const sendVerificationOtp = asyncHandler(async (req, res) => {
   }
 });
 
+
 export const verifyHeroOtp = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
   if (!email || !otp) {
@@ -62,97 +172,6 @@ export const verifyHeroOtp = asyncHandler(async (req, res) => {
       message:
         "Email verified successfully. Please complete your registration.",
     });
-});
-
-export const register = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, password, isEmailPreverified } = req.body;
-  let user = await User.findOne({ email });
-  if (user) {
-    res.status(409);
-    throw new Error(
-      "An account with this email already exists. Please log in."
-    );
-  }
-  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  if (isEmailPreverified) {
-    user = new User({
-      firstName,
-      lastName,
-      email,
-      password,
-      isVerified: true,
-      trialEndsAt,
-      currentPlan: "premium",
-    });
-    await user.save();
-    const token = generateToken(user._id);
-    res.status(201).json({
-      message: "Registration successful! Redirecting you...",
-      token,
-      user: {
-        _id: user._id,
-        email: user.email,
-      },
-    });
-  } else {
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-    user = new User({
-      firstName,
-      lastName,
-      email,
-      password,
-      otp,
-      otpExpires,
-      trialEndsAt,
-      currentPlan: "premium",
-    });
-    await user.save();
-    try {
-      await sendEmail(
-        email,
-        "Verify Your Email for Sulio AI",
-        `Your verification OTP is: ${otp}\nThis code will expire in 10 minutes.`
-      );
-      res.status(201).json({
-        message: "Registration successful. An OTP has been sent to your email.",
-      });
-    } catch (emailError) {
-      res.status(500);
-      throw new Error(
-        "Registration successful, but there was an issue sending the OTP email."
-      );
-    }
-  }
-});
-
-export const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email });
-  if (!user || !(await user.comparePassword(password))) {
-    return res.status(401).json({ message: "Invalid email or password" });
-  }
-  if (!user.isVerified) {
-    return res.status(401).json({
-      message: "Email not verified. Please check your email for an OTP.",
-    });
-  }
-  const token = generateToken(user._id);
-  res.status(200).json({
-    message: "Login successful",
-    token,
-    user: {
-      _id: user._id,
-      name: `${user.firstName} ${user.lastName}`,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      subscriptionStatus: user.subscriptionStatus,
-      trialEndsAt: user.trialEndsAt,
-      currentPlan: user.currentPlan,
-      instagramUserId: user.instagramUserId,
-    },
-  });
 });
 
 export const loginWithInstagram = asyncHandler(async (req, res) => {
@@ -238,9 +257,7 @@ export const loginWithInstagram = asyncHandler(async (req, res) => {
     const completionToken = jwt.sign(
       partialTokenPayload,
       process.env.JWT_SECRET,
-      {
-        expiresIn: "15m",
-      }
+      { expiresIn: "15m" }
     );
     res.status(201).json({
       message: "User profile needs completion.",
@@ -252,6 +269,7 @@ export const loginWithInstagram = asyncHandler(async (req, res) => {
     });
   }
 });
+
 
 export const sendInstagramEmailOtp = asyncHandler(async (req, res) => {
   const { email, completionToken } = req.body;
@@ -359,6 +377,7 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
   });
 });
 
+
 export const requestPasswordReset = asyncHandler(async (req, res) => {
   const { email } = req.body;
   const user = await User.findOne({ email });
@@ -381,6 +400,7 @@ export const requestPasswordReset = asyncHandler(async (req, res) => {
     .json({ message: "OTP for password reset sent to your email." });
 });
 
+
 export const resetPassword = asyncHandler(async (req, res) => {
   const { email, otp, newPassword } = req.body;
   const user = await User.findOne({ email });
@@ -401,6 +421,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
     .json({ message: "Password reset successful. You can now login." });
 });
 
+
 export const logout = asyncHandler(async (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
@@ -410,6 +431,7 @@ export const logout = asyncHandler(async (req, res) => {
   });
   res.status(200).json({ message: "Logged out successfully" });
 });
+
 
 export const getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select("-password");
