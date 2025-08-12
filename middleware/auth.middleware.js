@@ -18,7 +18,6 @@ const protect = asyncHandler(async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
     req.user = await User.findById(decoded.id).select("-password");
 
     if (!req.user) {
@@ -26,38 +25,15 @@ const protect = asyncHandler(async (req, res, next) => {
       throw new Error("User belonging to this token no longer exists");
     }
 
-    const now = new Date();
-    if (
-      req.user.subscriptionStatus === "free_trial" &&
-      req.user.trialEndsAt &&
-      now > req.user.trialEndsAt
-    ) {
-      console.log(
-        `[BACKEND PROTECT] Trial expired for user: ${req.user.email}. Downgrading.`
-      );
-
-      const updatedUser = await User.findByIdAndUpdate(
-        req.user._id,
-        {
-          subscriptionStatus: "trial_expired",
-          currentPlan: "basic",
-        },
-        { new: true }
-      ).select("-password");
-
-      req.user = updatedUser;
-    }
-
     next();
   } catch (err) {
-    console.error("[BACKEND PROTECT] FAILED:", err.message);
     res.status(401).json({ message: "Token is not valid" });
   }
 });
-const isAdmin = (req, res, next) => {
 
+const isAdmin = (req, res, next) => {
   if (req.user && req.user.role === "admin") {
-    next(); 
+    next();
   } else {
     res.status(403);
     throw new Error("Not authorized as an admin");

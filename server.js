@@ -29,9 +29,6 @@ const startServer = async () => {
 
     const corsOptions = {
       origin: (origin, callback) => {
-        console.log(`[CORS] Request from origin: ${origin}`);
-        console.log(`[CORS] Allowed origins: ${allowedOrigins}`);
-
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
           callback(null, true);
         } else {
@@ -40,7 +37,6 @@ const startServer = async () => {
         }
       },
       credentials: true,
-
       allowedHeaders: ["Content-Type", "Authorization"],
     };
 

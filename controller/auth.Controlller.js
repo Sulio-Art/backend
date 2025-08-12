@@ -96,6 +96,18 @@ export const login = asyncHandler(async (req, res) => {
   if (!user || !(await user.comparePassword(password))) {
     return res.status(401).json({ message: "Invalid email or password" });
   }
+
+  const now = new Date();
+  if (
+    user.subscriptionStatus === "free_trial" &&
+    user.trialEndsAt &&
+    now > user.trialEndsAt
+  ) {
+    user.subscriptionStatus = "trial_expired";
+    user.currentPlan = "basic";
+    await user.save();
+  }
+
   if (!user.isVerified) {
     return res.status(401).json({
       message: "Email not verified. Please check your email for an OTP.",
@@ -119,7 +131,6 @@ export const login = asyncHandler(async (req, res) => {
     },
   });
 });
-
 
 export const sendVerificationOtp = asyncHandler(async (req, res) => {
   const { email } = req.body;
@@ -153,7 +164,6 @@ export const sendVerificationOtp = asyncHandler(async (req, res) => {
   }
 });
 
-
 export const verifyHeroOtp = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
   if (!email || !otp) {
@@ -166,12 +176,9 @@ export const verifyHeroOtp = asyncHandler(async (req, res) => {
     throw new Error("Invalid or expired OTP.");
   }
   await Otp.deleteOne({ email });
-  res
-    .status(200)
-    .json({
-      message:
-        "Email verified successfully. Please complete your registration.",
-    });
+  res.status(200).json({
+    message: "Email verified successfully. Please complete your registration.",
+  });
 });
 
 export const loginWithInstagram = asyncHandler(async (req, res) => {
@@ -270,7 +277,6 @@ export const loginWithInstagram = asyncHandler(async (req, res) => {
   }
 });
 
-
 export const sendInstagramEmailOtp = asyncHandler(async (req, res) => {
   const { email, completionToken } = req.body;
   if (!email || !completionToken) {
@@ -321,11 +327,9 @@ export const verifyInstagramEmailOtp = asyncHandler(async (req, res) => {
     throw new Error("Invalid or expired OTP.");
   }
   await Otp.deleteOne({ email });
-  res
-    .status(200)
-    .json({
-      message: "Email verified successfully. You can now set your password.",
-    });
+  res.status(200).json({
+    message: "Email verified successfully. You can now set your password.",
+  });
 });
 
 export const completeInstagramRegistration = asyncHandler(async (req, res) => {
@@ -377,7 +381,6 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
   });
 });
 
-
 export const requestPasswordReset = asyncHandler(async (req, res) => {
   const { email } = req.body;
   const user = await User.findOne({ email });
@@ -400,7 +403,6 @@ export const requestPasswordReset = asyncHandler(async (req, res) => {
     .json({ message: "OTP for password reset sent to your email." });
 });
 
-
 export const resetPassword = asyncHandler(async (req, res) => {
   const { email, otp, newPassword } = req.body;
   const user = await User.findOne({ email });
@@ -421,7 +423,6 @@ export const resetPassword = asyncHandler(async (req, res) => {
     .json({ message: "Password reset successful. You can now login." });
 });
 
-
 export const logout = asyncHandler(async (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
@@ -431,7 +432,6 @@ export const logout = asyncHandler(async (req, res) => {
   });
   res.status(200).json({ message: "Logged out successfully" });
 });
-
 
 export const getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select("-password");

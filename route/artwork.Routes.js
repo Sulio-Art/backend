@@ -1,27 +1,30 @@
 import express from 'express';
 import {
   createArtwork,
-  getAllArtworks,
   getArtworkById,
   updateArtwork,
   getArtworksByUser,
   deleteArtwork,
+  getStorageStats,
 } from "../controller/artWork.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { upload } from "../middleware/cloudinery.middleware.js";
+
 const router = express.Router();
 
-router.get("/", getAllArtworks);
-router.get("/:id", getArtworkById);
-router.get("/user/:userId", getArtworksByUser);
+router.get("/user", protect, getArtworksByUser);
 
-router.route('/')
-    .post(protect, upload.single('image'), createArtwork);
+router.get("/stats/storage", protect, getStorageStats);
 
-router.route('/:id')
-    .put(protect, updateArtwork)
-    .delete(protect, deleteArtwork);
+router.get("/:id", protect, getArtworkById);
 
+router
+  .route("/")
+  .post(protect, upload.array("artworkImages", 10), createArtwork);
 
+router
+  .route("/:id")
+  .put(protect, upload.array("artworkImages", 10), updateArtwork)
+  .delete(protect, deleteArtwork);
 
 export default router;
