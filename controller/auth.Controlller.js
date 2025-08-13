@@ -1,4 +1,5 @@
 import User from "../model/user.model.js";
+import Subscription from "../model/subscription.Model.js";
 import Otp from "../model/otp.model.js";
 import asyncHandler from "express-async-handler";
 import jwt from "jsonwebtoken";
@@ -6,13 +7,11 @@ import crypto from "crypto";
 import sendEmail from "../utils/sendEmails.js";
 import fetch from "node-fetch";
 
-
 export const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 };
-
 
 export const checkEmailExists = asyncHandler(async (req, res) => {
   const { email } = req.body;
@@ -24,9 +23,8 @@ export const checkEmailExists = asyncHandler(async (req, res) => {
   res.status(200).json({ exists: !!user });
 });
 
-
 export const register = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, password, isEmailPreverified } = req.body;
+  const { firstName, lastName, email, password } = req.body;
   let user = await User.findOne({ email });
   if (user) {
     res.status(409);
@@ -35,60 +33,36 @@ export const register = asyncHandler(async (req, res) => {
     );
   }
 
-  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  if (isEmailPreverified) {
-    user = new User({
-      firstName,
-      lastName,
-      email,
-      password,
-      isVerified: true,
-      trialEndsAt,
-      currentPlan: "premium",
-    });
-    await user.save();
-    const token = generateToken(user._id);
-    res.status(201).json({
-      message: "Registration successful! Redirecting you...",
-      token,
-      user: {
-        _id: user._id,
-        email: user.email,
-      },
-    });
-  } else {
-   
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-    user = new User({
-      firstName,
-      lastName,
-      email,
-      password,
-      otp,
-      otpExpires,
-      trialEndsAt,
-      currentPlan: "premium",
-    });
-    await user.save();
-    try {
-      await sendEmail(
-        email,
-        "Verify Your Email for Sulio AI",
-        `Your verification OTP is: ${otp}\nThis code will expire in 10 minutes.`
-      );
-      res.status(201).json({
-        message: "Registration successful. An OTP has been sent to your email.",
-      });
-    } catch (emailError) {
-      res.status(500);
-      throw new Error(
-        "Registration successful, but there was an issue sending the OTP email."
-      );
-    }
-  }
-});
+  user = new User({
+    firstName,
+    lastName,
+    email,
+    password,
+    isVerified: true,
+    currentPlan: "premium",
+  });
+  await user.save();
 
+  const trialEndDate = new Date();
+  trialEndDate.setDate(trialEndDate.getDate() + 90);
+
+  await Subscription.create({
+    userId: user._id,
+    plan: "premium",
+    status: "trial",
+    amount: 0,
+    billingCycle: "trial",
+    startDate: new Date(),
+    endDate: trialEndDate,
+  });
+
+  const token = generateToken(user._id);
+  res.status(201).json({
+    message: "Registration successful! Your 90-day trial has started.",
+    token,
+    user: { _id: user._id, email: user.email },
+  });
+});
 
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
@@ -97,22 +71,15 @@ export const login = asyncHandler(async (req, res) => {
     return res.status(401).json({ message: "Invalid email or password" });
   }
 
-  const now = new Date();
-  if (
-    user.subscriptionStatus === "free_trial" &&
-    user.trialEndsAt &&
-    now > user.trialEndsAt
-  ) {
-    user.subscriptionStatus = "trial_expired";
-    user.currentPlan = "basic";
-    await user.save();
-  }
+  const subscription = await Subscription.findOne({ userId: user._id });
+  const subscriptionStatus = subscription ? subscription.status : "expired";
 
   if (!user.isVerified) {
     return res.status(401).json({
       message: "Email not verified. Please check your email for an OTP.",
     });
   }
+
   const token = generateToken(user._id);
   res.status(200).json({
     message: "Login successful",
@@ -123,8 +90,7 @@ export const login = asyncHandler(async (req, res) => {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      subscriptionStatus: user.subscriptionStatus,
-      trialEndsAt: user.trialEndsAt,
+      subscriptionStatus: subscriptionStatus,
       currentPlan: user.currentPlan,
       instagramUserId: user.instagramUserId,
       role: user.role,
@@ -179,102 +145,6 @@ export const verifyHeroOtp = asyncHandler(async (req, res) => {
   res.status(200).json({
     message: "Email verified successfully. Please complete your registration.",
   });
-});
-
-export const loginWithInstagram = asyncHandler(async (req, res) => {
-  const { code } = req.body;
-  if (!code) {
-    res.status(400);
-    throw new Error("Instagram authorization code is required.");
-  }
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
-  if (!redirectUri) {
-    res.status(500);
-    throw new Error("INSTAGRAM_REDIRECT_URI is not defined in backend .env");
-  }
-  const tokenFormData = new URLSearchParams({
-    client_id: process.env.INSTAGRAM_APP_ID,
-    client_secret: process.env.INSTAGRAM_APP_SECRET,
-    grant_type: "authorization_code",
-    redirect_uri: redirectUri,
-    code: code,
-  });
-  const tokenResponse = await fetch(
-    "https://api.instagram.com/oauth/access_token",
-    {
-      method: "POST",
-      body: tokenFormData,
-    }
-  );
-  const tokenData = await tokenResponse.json();
-  if (!tokenResponse.ok) {
-    throw new Error(
-      tokenData.error_message || "Failed to get token from Instagram."
-    );
-  }
-  let shortLivedToken;
-  if (tokenData.data && tokenData.data.length > 0) {
-    shortLivedToken = tokenData.data[0].access_token;
-  } else if (tokenData.access_token) {
-    shortLivedToken = tokenData.access_token;
-  } else {
-    throw new Error("Could not find access_token in Instagram response.");
-  }
-  const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${shortLivedToken}`;
-  const longLivedTokenResponse = await fetch(longLivedTokenUrl);
-  const longLivedTokenData = await longLivedTokenResponse.json();
-  const longLivedToken = longLivedTokenData.access_token || shortLivedToken;
-  const fields = "id,username,name";
-  const profileResponse = await fetch(
-    `https://graph.instagram.com/me?fields=${fields}&access_token=${longLivedToken}`
-  );
-  const profileData = await profileResponse.json();
-  if (!profileResponse.ok) {
-    throw new Error(
-      profileData.error.message || "Failed to fetch Instagram profile."
-    );
-  }
-  let user = await User.findOne({ instagramUserId: profileData.id });
-  if (user) {
-    user.instagramAccessToken = longLivedToken;
-    await user.save();
-    const appToken = generateToken(user._id);
-    res.status(200).json({
-      message: "Instagram login successful",
-      token: appToken,
-      user: {
-        _id: user._id,
-        name: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        instagramUserId: user.instagramUserId,
-      },
-    });
-  } else {
-    const partialTokenPayload = {
-      instagramId: profileData.id,
-      instagramUsername: profileData.username,
-      firstName: profileData.name
-        ? profileData.name.split(" ")[0]
-        : profileData.username,
-      lastName: profileData.name
-        ? profileData.name.split(" ").slice(1).join(" ")
-        : "",
-      instagramAccessToken: longLivedToken,
-    };
-    const completionToken = jwt.sign(
-      partialTokenPayload,
-      process.env.JWT_SECRET,
-      { expiresIn: "15m" }
-    );
-    res.status(201).json({
-      message: "User profile needs completion.",
-      completionToken: completionToken,
-      prefill: {
-        firstName: partialTokenPayload.firstName,
-        lastName: partialTokenPayload.lastName,
-      },
-    });
-  }
 });
 
 export const sendInstagramEmailOtp = asyncHandler(async (req, res) => {
@@ -355,7 +225,7 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
       "An account is already associated with this Instagram profile or email."
     );
   }
-  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
   user = new User({
     firstName,
     lastName,
@@ -365,10 +235,22 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
     instagramUsername: instagramUsername,
     instagramAccessToken: instagramAccessToken,
     isVerified: true,
-    trialEndsAt,
     currentPlan: "premium",
   });
   await user.save();
+
+  const trialEndDate = new Date();
+  trialEndDate.setDate(trialEndDate.getDate() + 90);
+  await Subscription.create({
+    userId: user._id,
+    plan: "premium",
+    status: "trial",
+    amount: 0,
+    billingCycle: "trial",
+    startDate: new Date(),
+    endDate: trialEndDate,
+  });
+
   const finalToken = generateToken(user._id);
   res.status(201).json({
     message: "Registration complete. Welcome!",
@@ -434,22 +316,41 @@ export const logout = asyncHandler(async (req, res) => {
 });
 
 export const getMe = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user.id).select("-password");
-  if (user) {
+  console.log("\n--- [BACKEND /me] Endpoint Hit ---");
+  // req.user is populated by your 'protect' middleware
+  const userFromDb = await User.findById(req.user.id).select("-password");
+
+  if (userFromDb) {
+    console.log(
+      "[BACKEND /me] Found user in database. User data being sent to frontend:",
+      {
+        id: userFromDb._id,
+        firstName: userFromDb.firstName,
+        lastName: userFromDb.lastName,
+        email: userFromDb.email,
+        phoneNumber: userFromDb.phoneNumber,
+        subscriptionStatus: req.user.subscriptionStatus, // This comes from middleware
+        currentPlan: userFromDb.currentPlan,
+        instagramUserId: userFromDb.instagramUserId, // <<< CHECK THIS VALUE
+        role: userFromDb.role,
+      }
+    );
+
     res.status(200).json({
       user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        subscriptionStatus: user.subscriptionStatus,
-        trialEndsAt: user.trialEndsAt,
-        currentPlan: user.currentPlan,
-        instagramUserId: user.instagramUserId,
+        id: userFromDb._id,
+        firstName: userFromDb.firstName,
+        lastName: userFromDb.lastName,
+        email: userFromDb.email,
+        phoneNumber: userFromDb.phoneNumber,
+        subscriptionStatus: req.user.subscriptionStatus,
+        currentPlan: userFromDb.currentPlan,
+        instagramUserId: userFromDb.instagramUserId,
+        role: userFromDb.role,
       },
     });
   } else {
+    console.error("[BACKEND /me] ERROR: User not found for ID:", req.user.id);
     res.status(404);
     throw new Error("User not found");
   }

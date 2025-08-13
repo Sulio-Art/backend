@@ -1,149 +1,130 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
-import Subscription from '../models/subscription.model.js';
-import User from "../models/user.model.js";
+import Subscription from "../model/subscription.Model.js";
+import User from "../model/user.model.js";
+import asyncHandler from "express-async-handler";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-const createSubscriptionOrder = async (req, res) => {
-  try {
-    const { amount, plan, billingCycle } = req.body;
-    if (!amount || !plan || !billingCycle) {
-      return res
-        .status(400)
-        .json({ message: "Amount, plan, and billingCycle are required" });
-    }
-
-    const options = {
-      amount: Number(amount) * 100,
-      currency: "INR",
-    };
-    const order = await razorpay.orders.create(options);
-
-    await Subscription.findOneAndUpdate(
-      { userId: req.user.id },
-      {
-        userId: req.user.id,
-        amount,
-        plan,
-        billingCycle,
-        razorpayOrderId: order.id,
-        status: "pending",
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-
-    res.status(200).json({
-      key: process.env.RAZORPAY_KEY_ID,
-      orderId: order.id,
-      amount: order.amount,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+const createSubscriptionOrder = asyncHandler(async (req, res) => {
+  const { amount, plan, billingCycle } = req.body;
+  if (!amount || !plan || !billingCycle) {
+    res.status(400);
+    throw new Error("Amount, plan, and billingCycle are required");
   }
-};
 
-const verifySubscriptionPayment = async (req, res) => {
-  try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-      req.body;
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
+  const options = {
+    amount: Number(amount) * 100,
+    currency: "INR",
+  };
+  const order = await razorpay.orders.create(options);
 
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest("hex");
+  await Subscription.findOneAndUpdate(
+    { userId: req.user.id },
+    {
+      amount,
+      plan,
+      billingCycle,
+      razorpayOrderId: order.id,
+      status: "pending",
+    },
+    { new: true } // Don't upsert; a doc should already exist
+  );
 
-    if (expectedSignature !== razorpay_signature) {
-      return res.status(400).json({ message: "Payment verification failed" });
-    }
+  res.status(200).json({
+    key: process.env.RAZORPAY_KEY_ID,
+    orderId: order.id,
+    amount: order.amount,
+  });
+});
 
-    const subscription = await Subscription.findOne({
-      razorpayOrderId: razorpay_order_id,
-    });
-    if (!subscription) {
-      return res.status(404).json({ message: "Subscription order not found" });
-    }
+const verifySubscriptionPayment = asyncHandler(async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
 
-    subscription.razorpayPaymentId = razorpay_payment_id;
-    subscription.razorpaySignature = razorpay_signature;
-    subscription.status = "active";
-    subscription.startDate = new Date();
+  const expectedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(body.toString())
+    .digest("hex");
 
-    const endDate = new Date(subscription.startDate);
-    if (subscription.billingCycle === "yearly") {
-      endDate.setFullYear(endDate.getFullYear() + 1);
-    } else {
-      endDate.setMonth(endDate.getMonth() + 1);
-    }
-    subscription.endDate = endDate;
-
-    await subscription.save();
-
-    await User.findByIdAndUpdate(subscription.userId, {
-      subscriptionStatus: "active",
-      currentPlan: subscription.plan,
-      trialEndsAt: undefined,
-      subscriptionId: subscription._id,
-    });
-
-    res
-      .status(200)
-      .json({ message: "Subscription activated successfully", subscription });
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+  if (expectedSignature !== razorpay_signature) {
+    res.status(400);
+    throw new Error("Payment verification failed");
   }
-};
 
-const getMySubscription = async (req, res) => {
-  try {
-    const subscription = await Subscription.findOne({ userId: req.user.id });
-    if (!subscription) {
-      return res.status(404).json({ message: "No active subscription found" });
-    }
-    res.status(200).json(subscription);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+  const subscription = await Subscription.findOne({
+    razorpayOrderId: razorpay_order_id,
+  });
+  if (!subscription) {
+    res.status(404);
+    throw new Error("Subscription order not found");
   }
-};
 
-const cancelMySubscription = async (req, res) => {
-  try {
-    const subscription = await Subscription.findOneAndUpdate(
-      { userId: req.user.id, status: "active" },
-      { $set: { status: "cancelled" } },
-      { new: true }
-    );
-    if (!subscription) {
-      return res
-        .status(404)
-        .json({ message: "No active subscription found to cancel" });
-    }
+  subscription.razorpayPaymentId = razorpay_payment_id;
+  subscription.razorpaySignature = razorpay_signature;
+  subscription.status = "active";
+  subscription.startDate = new Date();
 
-    const user = await User.findById(subscription.userId);
-    if (user) {
-      user.subscriptionStatus = "cancelled";
-      await user.save();
-    }
-    res
-      .status(200)
-      .json({ message: "Subscription cancelled successfully", subscription });
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+  const endDate = new Date(subscription.startDate);
+  if (subscription.billingCycle === "yearly") {
+    endDate.setFullYear(endDate.getFullYear() + 1);
+  } else {
+    endDate.setMonth(endDate.getMonth() + 1);
   }
-};
+  subscription.endDate = endDate;
+  await subscription.save();
 
-const getAllSubscriptions = async (req, res) => {
-  try {
-    const subscriptions = await Subscription.find({}).populate('userId', 'name email');
-    res.status(200).json(subscriptions);
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
+  await User.findByIdAndUpdate(subscription.userId, {
+    currentPlan: subscription.plan,
+  });
+
+  res
+    .status(200)
+    .json({ message: "Subscription activated successfully", subscription });
+});
+
+const getMySubscription = asyncHandler(async (req, res) => {
+  // The logic is now simple: a subscription document MUST exist for every user.
+  const subscription = await Subscription.findOne({ userId: req.user.id });
+
+  if (!subscription) {
+    // This case should ideally never be reached for a logged-in user, but is a good safeguard.
+    return res
+      .status(404)
+      .json({
+        message: "CRITICAL: Subscription record not found for this user.",
+      });
   }
-};
+
+  res.status(200).json(subscription);
+});
+
+const cancelMySubscription = asyncHandler(async (req, res) => {
+  const subscription = await Subscription.findOneAndUpdate(
+    { userId: req.user.id, status: "active" },
+    { $set: { status: "cancelled" } },
+    { new: true }
+  );
+  if (!subscription) {
+    res.status(404);
+    throw new Error("No active subscription found to cancel");
+  }
+  res
+    .status(200)
+    .json({ message: "Subscription cancelled successfully", subscription });
+});
+
+const getAllSubscriptions = asyncHandler(async (req, res) => {
+  const subscriptions = await Subscription.find({}).populate(
+    "userId",
+    "name email"
+  );
+  res.status(200).json(subscriptions);
+});
 
 export {
   createSubscriptionOrder,

@@ -86,6 +86,13 @@ const getMyProfile = async (req, res) => {
       profile = new Profile({
         userId: userId,
         bio: "Welcome to my profile! I'm excited to share my art.",
+        website: "",
+        location: "",
+        socialLinks: {
+          instagram: "",
+          twitter: "",
+          portfolio: "",
+        },
       });
       await profile.save();
 

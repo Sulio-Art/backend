@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import asyncHandler from "express-async-handler";
 import User from "../model/user.model.js";
+import Subscription from "../model/subscription.Model.js";
 
 const protect = asyncHandler(async (req, res, next) => {
   let token;
@@ -24,6 +25,28 @@ const protect = asyncHandler(async (req, res, next) => {
       res.status(401);
       throw new Error("User belonging to this token no longer exists");
     }
+
+    // Check and update subscription status on every request
+    const subscription = await Subscription.findOne({ userId: req.user._id });
+
+    // If trial is found and has expired, update its status
+    if (
+      subscription &&
+      subscription.status === "trial" &&
+      new Date() > new Date(subscription.endDate)
+    ) {
+      subscription.status = "expired";
+      await subscription.save();
+
+      // Also downgrade the user's plan in the User model
+      req.user.currentPlan = "free";
+      await req.user.save();
+    }
+
+    // Attach the most current subscription status to the request user object
+    req.user.subscriptionStatus = subscription
+      ? subscription.status
+      : "expired";
 
     next();
   } catch (err) {

@@ -14,12 +14,10 @@ const subscriptionSchema = new mongoose.Schema(
       required: true,
     },
     amount: { type: Number, required: true },
-
     billingCycle: {
       type: String,
-      enum: ["monthly", "yearly"],
+      enum: ["monthly", "yearly", "trial"],
       required: true,
-      default: "yearly",
     },
     provider: {
       type: String,
@@ -33,7 +31,7 @@ const subscriptionSchema = new mongoose.Schema(
     endDate: { type: Date },
     status: {
       type: String,
-      enum: ["active", "expired", "cancelled", "pending"],
+      enum: ["active", "expired", "cancelled", "pending", "trial"],
       default: "pending",
     },
   },

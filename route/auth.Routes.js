@@ -2,46 +2,37 @@ import express from "express";
 import {
   register,
   login,
+  checkEmailExists,
+  sendVerificationOtp,
+  verifyHeroOtp,
+  sendInstagramEmailOtp,
+  verifyInstagramEmailOtp,
+  completeInstagramRegistration,
   requestPasswordReset,
   resetPassword,
   logout,
   getMe,
-  sendInstagramEmailOtp,
-  verifyInstagramEmailOtp,
-  loginWithInstagram,
-  completeInstagramRegistration,
-  sendVerificationOtp,
-  verifyHeroOtp,
-  checkEmailExists,
 } from "../controller/auth.Controlller.js";
-import {
-  connectInstagramAccount,
-  getInstagramProfile,
-} from "../controller/instagram.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
-import { verifyUserOtp } from "../controller/verifyOtp.controller.js";
+import { handleBusinessLogin } from "../controller/instagram.Controller.js";
 
 const router = express.Router();
 
-router.post("/send-verification-otp", sendVerificationOtp);
-router.post("/verify-hero-otp", verifyHeroOtp);
-router.post("/instagram/send-email-otp", sendInstagramEmailOtp);
-router.post("/instagram/verify-email-otp", verifyInstagramEmailOtp);
-
+// Existing Auth Routes
 router.post("/register", register);
-router.post("/verify-otp", verifyUserOtp);
 router.post("/login", login);
-router.post("/logout", logout);
+router.post("/check-email", checkEmailExists);
+router.post("/send-otp", sendVerificationOtp);
+router.post("/verify-hero-otp", verifyHeroOtp);
 router.post("/request-password-reset", requestPasswordReset);
 router.post("/reset-password", resetPassword);
+router.post("/logout", logout);
+router.get("/me", protect, getMe); // Added 'protect' middleware to secure this route
 
-router.post("/instagram/login", loginWithInstagram);
+// Instagram Specific Routes
+router.post("/instagram/login", handleBusinessLogin);
 router.post("/instagram/complete-registration", completeInstagramRegistration);
-router.post("/check-email", checkEmailExists);
-
-router.get("/me", protect, getMe);
-
-router.post("/instagram/connect", protect, connectInstagramAccount);
-router.get("/instagram/profile", protect, getInstagramProfile); 
+router.post("/instagram/send-instagram-email-otp", sendInstagramEmailOtp);
+router.post("/instagram/verify-instagram-email-otp", verifyInstagramEmailOtp);
 
 export default router;
