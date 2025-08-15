@@ -17,6 +17,7 @@ import adminRoutes from "./route/admin.Routes.js";
 import subscriptionRoutes from "./route/subscription.Routes.js";
 import verifyOtpRoutes from "./route/verifyOtp.Routes.js";
 
+
 dotenv.config();
 const startServer = async () => {
   const app = express();
@@ -45,15 +46,13 @@ const startServer = async () => {
       credentials: true,
     };
 
-    // This single line handles all CORS logic, including security preflight checks.
     app.use(cors(corsOptions));
 
     app.use(express.json());
     app.use(cookieParser());
 
-    // --- API Routes ---
     app.use("/api/auth", authRoutes);
-    // This route is specifically for the standard registration OTP verification
+
     app.use("/api/auth/verify-otp", verifyOtpRoutes);
 
     app.use("/api/artworks", artworkRoutes);
@@ -61,11 +60,11 @@ const startServer = async () => {
     app.use("/api/customers", customerRoutes);
     app.use("/api/diary", diaryRoutes);
     app.use("/api/events", eventRoutes);
-    app.use("/profiles", profileRoutes); // Your original, working path
+    app.use("/profiles", profileRoutes);
     app.use("/api/dashboard", dashboardRoutes);
     app.use("/api/transactions", transactionRoutes);
-    app.use("/api/admin", adminRoutes);
     app.use("/api/subscriptions", subscriptionRoutes);
+    app.use("/api/admin", adminRoutes);
 
     app.get("/", (req, res) => {
       res.send("Sulio Art API is running...");

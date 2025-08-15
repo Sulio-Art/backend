@@ -1,34 +1,46 @@
 import jwt from "jsonwebtoken";
 import User from "../model/user.model.js";
-import Subscription from "../model/subscription.Model.js"; // <-- Import Subscription model
+import Subscription from "../model/subscription.Model.js";
+import Otp from "../model/otp.model.js";
 import asyncHandler from "express-async-handler";
 
-/**
- * LOGICAL FIX: This controller now finalizes the registration.
- * It verifies the user, creates the trial subscription, and generates the login token.
- */
+
 export const verifyUserOtp = asyncHandler(async (req, res) => {
-  const { email, otp } = req.body;
+  
+  const { firstName, lastName, email, password, otp } = req.body;
 
-  const user = await User.findOne({ email });
-
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found.");
-  }
-
-  // Check for OTP on the user document itself, and ensure it hasn't expired
-  if (user.otp !== otp || user.otpExpires < Date.now()) {
+  if (!firstName || !lastName || !email || !password || !otp) {
     res.status(400);
-    throw new Error("Invalid or expired OTP.");
+    throw new Error("All registration details and OTP are required.");
   }
 
-  // Finalize user verification
-  user.isVerified = true;
-  user.otp = undefined;
-  user.otpExpires = undefined;
+  
+  const tempOtp = await Otp.findOne({ email });
+  if (!tempOtp || tempOtp.otp !== otp) {
+    res.status(400);
+    throw new Error("Invalid or expired OTP. Please try registering again.");
+  }
 
-  // Create the 90-day trial subscription
+  
+  const userExists = await User.findOne({ email });
+  if (userExists) {
+    await Otp.deleteOne({ email }); 
+    res.status(409);
+    throw new Error("An account with this email already exists.");
+  }
+
+
+  const user = new User({
+    firstName,
+    lastName,
+    email,
+    password,
+    isVerified: true,
+    currentPlan: "premium",
+  });
+  await user.save();
+
+  
   const trialEndDate = new Date();
   trialEndDate.setDate(trialEndDate.getDate() + 90);
 
@@ -42,16 +54,15 @@ export const verifyUserOtp = asyncHandler(async (req, res) => {
     endDate: trialEndDate,
   });
 
-  // Also update the user's plan status
-  user.currentPlan = "premium";
-  await user.save();
 
-  // Generate a token for auto-login
+  await Otp.deleteOne({ email });
+
+  
   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 
-  res.status(200).json({
+  res.status(201).json({
     message: "Account verified successfully! Your 90-day trial has started.",
     token,
     user: {

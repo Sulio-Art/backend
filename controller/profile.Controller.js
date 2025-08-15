@@ -57,7 +57,7 @@ const createOrUpdateMyProfile = async (req, res) => {
       { userId: req.user.id },
       { $set: profileFields },
       { new: true, upsert: true, setDefaultsOnInsert: true }
-      // --- UPDATED: Added 'phoneNumber' to the populate list ---
+      
     ).populate(
       "userId",
       "firstName lastName email instagramUsername phoneNumber"

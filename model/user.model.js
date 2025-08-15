@@ -7,48 +7,28 @@ const userSchema = new mongoose.Schema(
     lastName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     phoneNumber: { type: String, required: false },
-    password: { type: String, required: true },
+    password: { type: String, required: true, uniques: true, sparse: true },
     isVerified: { type: Boolean, default: false },
-    
+
     role: {
       type: String,
       enum: ["user", "admin"],
-      default: "user", 
+      default: "user",
     },
     otp: String,
     otpExpires: Date,
-    instagramUserId: {
-      type: String,
-      default: null,
-    },
-    instagramAccessToken: {
-      type: String,
-      default: null,
-    },
-    instagramTokenExpiresAt: {
-      type: Date,
-      default: null,
-    },
-    instagramUsername: {
-      type: String,
-      default: null,
-    },
-    instagramProfilePictureUrl: {
-      type: String,
-      default: null,
-    },
-    instagramFollowersCount: {
-      type: Number,
-      default: 0,
-    },
-    instagramBio: {
-      type: String,
-      default: null,
-    },
-    instagramWebsite: {
-      type: String,
-      default: null,
-    },
+
+
+    instagramUserId: { type: String, default: null },
+    instagramAccessToken: { type: String, default: null },
+    instagramTokenExpiresAt: { type: Date, default: null },
+    instagramUsername: { type: String, default: null },
+    instagramProfilePictureUrl: { type: String, default: null },
+    instagramFollowersCount: { type: Number, default: 0 },
+    instagramBio: { type: String, default: null },
+    instagramWebsite: { type: String, default: null },
+
+   
     subscriptionStatus: {
       type: String,
       enum: ["free_trial", "active", "inactive", "cancelled", "trial_expired"],
@@ -56,11 +36,12 @@ const userSchema = new mongoose.Schema(
     },
     currentPlan: {
       type: String,
-      enum: ["basic", "premium", "pro"],
-      default: "basic",
+      enum: ["free", "plus", "premium", "pro"],
+      default: "free",
     },
     trialEndsAt: {
       type: Date,
+      default: () => new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
     },
     subscriptionId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -71,15 +52,17 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
+
 userSchema.methods.comparePassword = async function (password) {
   return bcrypt.compare(password, this.password);
 };
 
-export default mongoose.models.User || mongoose.model('User', userSchema);
+export default mongoose.models.User || mongoose.model("User", userSchema);

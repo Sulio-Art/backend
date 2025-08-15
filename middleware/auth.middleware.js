@@ -3,58 +3,92 @@ import asyncHandler from "express-async-handler";
 import User from "../model/user.model.js";
 import Subscription from "../model/subscription.Model.js";
 
-const protect = asyncHandler(async (req, res, next) => {
+export const protect = asyncHandler(async (req, res, next) => {
   let token;
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer ")
-  ) {
-    token = req.headers.authorization.split(" ")[1];
-  }
 
-  if (!token) {
+  if (
+    !(
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    )
+  ) {
     res.status(401);
-    throw new Error("No token, authorization denied");
+    throw new Error("Not authorized, no token");
   }
 
   try {
+    token = req.headers.authorization.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select("-password");
 
-    if (!req.user) {
+    if (!decoded || !decoded.id) {
       res.status(401);
-      throw new Error("User belonging to this token no longer exists");
+      throw new Error("Not authorized, token invalid");
     }
 
-    // Check and update subscription status on every request
-    const subscription = await Subscription.findOne({ userId: req.user._id });
+    const user = await User.findById(decoded.id).select("-password");
+    if (!user) {
+      res.status(401);
+      throw new Error("User not found");
+    }
 
-    // If trial is found and has expired, update its status
+    let subscription = await Subscription.findOne({ userId: user._id });
+
+    if (!subscription) {
+      subscription = await Subscription.create({
+        userId: user._id,
+        plan: "free",
+        status: "active",
+        amount: 0,
+        billingCycle: "monthly",
+        startDate: new Date(),
+        endDate: null,
+      });
+      user.subscriptionId = subscription._id;
+      user.currentPlan = "free";
+      await user.save();
+    }
+
+    let needsUserUpdate = false;
+
     if (
-      subscription &&
       subscription.status === "trial" &&
+      subscription.endDate &&
       new Date() > new Date(subscription.endDate)
     ) {
+      console.log(
+        `[Auth Middleware] Trial expired for user ${user._id}. Downgrading.`
+      );
+
+      subscription.plan = "free";
       subscription.status = "expired";
       await subscription.save();
 
-      // Also downgrade the user's plan in the User model
-      req.user.currentPlan = "free";
-      await req.user.save();
+      user.currentPlan = "free";
+      needsUserUpdate = true;
     }
 
-    // Attach the most current subscription status to the request user object
-    req.user.subscriptionStatus = subscription
-      ? subscription.status
-      : "expired";
+    if (user.currentPlan !== subscription.plan) {
+      console.log(`[Auth Middleware] Syncing user plan for ${user._id}.`);
+      user.currentPlan = subscription.plan;
+      needsUserUpdate = true;
+    }
+
+    if (needsUserUpdate) {
+      await user.save();
+    }
+
+    req.user = user;
+    req.subscription = subscription;
 
     next();
-  } catch (err) {
-    res.status(401).json({ message: "Token is not valid" });
+  } catch (error) {
+    console.error("Auth middleware error:", error.message);
+    res.status(401);
+    throw new Error("Not authorized, token failed");
   }
 });
 
-const isAdmin = (req, res, next) => {
+export const isAdmin = (req, res, next) => {
   if (req.user && req.user.role === "admin") {
     next();
   } else {
@@ -62,5 +96,3 @@ const isAdmin = (req, res, next) => {
     throw new Error("Not authorized as an admin");
   }
 };
-
-export { protect, isAdmin };
