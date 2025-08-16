@@ -12,11 +12,6 @@ const PLAN_QUERY_LIMITS = {
   pro: Infinity,
 };
 
-/**
- * @desc    Handle an incoming chat message from a customer via Instagram
- * @route   POST /api/chat/
- * @access  Public (via webhook)
- */
 export const handleChat = async (req, res) => {
   try {
     const { query, task } = req.body;
@@ -73,11 +68,6 @@ export const handleChat = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get the logged-in artist's own chat history
- * @route   GET /api/chat/history
- * @access  Private
- */
 export const getChatHistory = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -114,13 +104,17 @@ export const saveChatbotSetting = async (req, res) => {
         .json({ message: "Setting and value are required." });
     }
 
-   
-
-    await Profile.findOneAndUpdate(
+    const profile = await Profile.findOneAndUpdate(
       { userId },
-      { isChatbotConfigured: true },
+      { $set: { isChatbotConfigured: true } },
       { upsert: true, new: true }
     );
+
+    const settingKey = setting.toLowerCase().replace(/\s+/g, "-");
+
+    profile.chatbotSettings.set(settingKey, value);
+
+    await profile.save();
 
     res
       .status(200)

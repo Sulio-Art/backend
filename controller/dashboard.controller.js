@@ -3,7 +3,7 @@ import Transaction from "../model/transaction.Model.js";
 import Chat from "../model/chat.Model.js";
 import Profile from "../model/profile.Model.js";
 import Artwork from "../model/artWork.Model.js";
-import mongoose from "mongoose"; 
+import mongoose from "mongoose";
 
 /**
  * @desc    Get the onboarding status for the logged-in user
@@ -35,7 +35,8 @@ export const getOnboardingStatus = async (req, res) => {
  */
 export const getDashboardStats = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+
     const totalEvents = await Event.countDocuments({ userId });
     const messagesSent = await Chat.countDocuments({ userId });
 
@@ -49,23 +50,34 @@ export const getDashboardStats = async (req, res) => {
       createdAt: { $gte: startOfDay, $lte: endOfDay },
     });
 
-    
-    const customerLocations = await Transaction.aggregate([
-      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
-    ]);
-
-   
-    const countryStats = [
-      { name: "United States", count: 154 },
-      { name: "United Kingdom", count: 87 },
-      { name: "Canada", count: 56 },
-      { name: "Australia", count: 34 },
-      { name: "Germany", count: 23 },
-    ];
-
     const recentTransactions = await Transaction.find({ userId })
       .sort({ createdAt: -1 })
       .limit(5);
+
+    const countryStats = await Transaction.aggregate([
+      {
+        $match: {
+          userId: userId,
+          "customerInfo.country": { $exists: true, $ne: null },
+        },
+      },
+      { $group: { _id: "$customerInfo.country", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+      { $project: { _id: 0, name: "$_id", count: "$count" } },
+    ]);
+
+    const sentimentResult = await Chat.aggregate([
+      { $match: { userId: userId, sentiment: { $exists: true } } },
+      { $group: { _id: null, avgSentiment: { $avg: "$sentiment" } } },
+    ]);
+
+    const sentimentScore =
+      sentimentResult.length > 0
+        ? parseFloat(sentimentResult[0].avgSentiment.toFixed(3))
+        : 0;
+
+    const ageGroups = [];
 
     res.status(200).json({
       totalEvents,
@@ -73,13 +85,8 @@ export const getDashboardStats = async (req, res) => {
       artworkSoldToday,
       countryStats,
       recentTransactions,
-      ageGroups: [
-        { label: "18-24", count: 560, color: "#EF4444" },
-        { label: "25-40", count: 654, color: "#8B5CF6" },
-        { label: "40-60", count: 245, color: "#10B981" },
-        { label: "61-80+", count: 16, color: "#3B82F6" },
-      ],
-      sentimentScore: 0.897,
+      ageGroups,
+      sentimentScore,
     });
   } catch (error) {
     console.error("Dashboard Stats Error:", error);

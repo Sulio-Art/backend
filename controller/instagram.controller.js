@@ -23,10 +23,13 @@ export const getInstagramAuthUrl = asyncHandler(async (req, res) => {
   authUrl.searchParams.set("client_id", INSTAGRAM_APP_ID);
   authUrl.searchParams.set("redirect_uri", INSTAGRAM_REDIRECT_URI);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set(
-    "scope",
-    "instagram_business_basic,instagram_business_content_publish"
-  );
+  const scopes = [
+    "instagram_business_basic",
+    "instagram_business_content_publish",
+    "instagram_business_manage_comments",
+    "instagram_business_manage_messages",
+  ];
+  authUrl.searchParams.set("scope", scopes.join(","));
   authUrl.searchParams.set("state", state);
   console.log(
     `[getInstagramAuthUrl] Generated auth URL for state '${state}': ${authUrl.toString()}`
@@ -72,12 +75,23 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
         "Failed to get short-lived token from Instagram."
     );
   }
-  console.log(
-    "[handleBusinessLogin] 2. Successfully received short-lived token."
-  );
-
-  const shortLivedToken = tokenData.access_token;
-  const instagramAppScopedId = tokenData.user_id;
+  let shortLivedToken, instagramAppScopedId;
+  if (tokenData.access_token && tokenData.user_id) {
+    shortLivedToken = tokenData.access_token;
+    instagramAppScopedId = tokenData.user_id;
+  } else if (
+    tokenData.data &&
+    tokenData.data[0] &&
+    tokenData.data[0].access_token
+  ) {
+    shortLivedToken = tokenData.data[0].access_token;
+    instagramAppScopedId = tokenData.data[0].user_id;
+  } else {
+    console.error("Unknown Instagram token response format:", tokenData);
+    throw new Error(
+      "Could not parse the access token from Instagram's response."
+    );
+  }
 
   const longLivedTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${INSTAGRAM_APP_SECRET}&access_token=${shortLivedToken}`;
   const longLivedTokenResponse = await fetch(longLivedTokenUrl);

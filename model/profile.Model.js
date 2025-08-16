@@ -12,17 +12,20 @@ const profileSchema = new mongoose.Schema(
       type: String,
       default: "https://i.imgur.com/6VBx3io.png",
     },
-
     coverPhoto: {
       type: String,
       default: "https://i.imgur.com/8V254hN.png",
     },
-
     isChatbotConfigured: {
       type: Boolean,
       default: false,
     },
-
+   
+    chatbotSettings: {
+      type: Map,
+      of: String,
+      default: {},
+    },
     website: String,
     location: String,
     socialLinks: {
