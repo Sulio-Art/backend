@@ -2,17 +2,13 @@ import Artwork from '../model/artWork.Model.js';
 import mongoose from "mongoose";
 import cloudinary from "../middleware/cloudinery.middleware.js";
 import streamifier from "streamifier";
+import { getEntitlements } from '../conifg/planPolicy.js';
 
-const PLAN_STORAGE_LIMITS = {
-  free: 20 * 1024 * 1024,
-  basic: 20 * 1024 * 1024,
-  trial_expired: 20 * 1024 * 1024,
-  plus: 50 * 1024 * 1024,
-  premium: 200 * 1024 * 1024,
-  pro: 500 * 1024 * 1024,
-  default: 20 * 1024 * 1024,
-};
-
+/**
+ * @desc    Create a new artwork and upload its images to Cloudinary.
+ * @route   POST /api/artworks
+ * @access  Private
+ */
 const createArtwork = async (req, res) => {
   try {
     const {
@@ -27,7 +23,13 @@ const createArtwork = async (req, res) => {
     } = req.body;
 
     const userId = req.user.id;
-    const userPlan = req.user.currentPlan || "free";
+
+    
+    const entitlements = getEntitlements(req.subscription.plan, req.subscription.status);
+
+    if (!entitlements.isActive) {
+        return res.status(403).json({ message: "Your subscription is not active. Please upgrade your plan." });
+    }
 
     if (!title || !req.files || req.files.length === 0) {
       return res
@@ -35,8 +37,7 @@ const createArtwork = async (req, res) => {
         .json({ message: "Title and at least one image file are required" });
     }
 
-    const storageLimit =
-      PLAN_STORAGE_LIMITS[userPlan] || PLAN_STORAGE_LIMITS.default;
+    const storageLimit = entitlements.storageLimitBytes;
     const totalNewFileSize = req.files.reduce(
       (sum, file) => sum + file.size,
       0
@@ -51,7 +52,7 @@ const createArtwork = async (req, res) => {
 
     if (currentUsage + totalNewFileSize > storageLimit) {
       return res.status(403).json({
-        message: `Upload failed. You have exceeded your storage limit.`,
+        message: `Upload failed. You have exceeded your storage limit of ${(storageLimit / 1024 / 1024).toFixed(0)} MB.`,
       });
     }
 
@@ -98,6 +99,11 @@ const createArtwork = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get all artworks for the logged-in user with pagination and filtering.
+ * @route   GET /api/artworks/user
+ * @access  Private
+ */
 const getArtworksByUser = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -142,6 +148,11 @@ const getArtworksByUser = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get a single artwork by its ID.
+ * @route   GET /api/artworks/:id
+ * @access  Private
+ */
 const getArtworkById = async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -163,12 +174,17 @@ const getArtworkById = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get the user's current storage usage and their plan's storage limit.
+ * @route   GET /api/artworks/stats/storage
+ * @access  Private
+ */
 const getStorageStats = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userPlan = req.user.currentPlan || "free";
-    const storageLimit =
-      PLAN_STORAGE_LIMITS[userPlan] || PLAN_STORAGE_LIMITS.default;
+
+    const entitlements = getEntitlements(req.subscription.plan, req.subscription.status);
+    const storageLimit = entitlements.storageLimitBytes;
 
     const usageAggregation = await Artwork.aggregate([
       { $match: { createdBy: new mongoose.Types.ObjectId(userId) } },
@@ -183,6 +199,11 @@ const getStorageStats = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Update an existing artwork.
+ * @route   PUT /api/artworks/:id
+ * @access  Private
+ */
 const updateArtwork = async (req, res) => {
   try {
     const artworkId = req.params.id;
@@ -270,6 +291,11 @@ const updateArtwork = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Delete an artwork by its ID.
+ * @route   DELETE /api/artworks/:id
+ * @access  Private
+ */
 const deleteArtwork = async (req, res) => {
   try {
     const artworkId = req.params.id;

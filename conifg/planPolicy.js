@@ -1,13 +1,9 @@
-// backend/conifg/planPolicy.js
-
 export const PLAN_POLICY = {
   free: {
     artworkMaxSizeMB: 20,
     storageLimitBytes: 20 * 1024 * 1024,
     maxArtworks: 50,
     features: {
-      // According to your rules, 'transactionManagement' is the only feature
-      // locked on the free plan. All others are available.
       transactionManagement: false,
       aiChatbot: true,
       eventManagement: true,
@@ -16,7 +12,7 @@ export const PLAN_POLICY = {
   },
   plus: {
     artworkMaxSizeMB: 100,
-    storageLimitBytes: 100 * 1024 * 1024,
+    storageLimitBytes: 50 * 1024 * 1024,
     maxArtworks: 200,
     features: {
       transactionManagement: true,
@@ -49,12 +45,10 @@ export const PLAN_POLICY = {
   },
 };
 
-
 export function getEntitlements(plan = "free", status = "active") {
   const effectivePlan = plan || "free";
 
   const isActive = status === "active" || status === "trial";
-
 
   if (!isActive) {
     const policy = PLAN_POLICY[effectivePlan] || PLAN_POLICY.free;
@@ -64,7 +58,7 @@ export function getEntitlements(plan = "free", status = "active") {
       artworkMaxSizeMB: policy.artworkMaxSizeMB,
       storageLimitBytes: policy.storageLimitBytes,
       maxArtworks: policy.maxArtworks,
-      
+
       features: {
         transactionManagement: false,
         aiChatbot: false,
@@ -74,14 +68,13 @@ export function getEntitlements(plan = "free", status = "active") {
     };
   }
 
-
   const policy = PLAN_POLICY[effectivePlan] || PLAN_POLICY.free;
   return {
     effectivePlan,
-    isActive: true, 
+    isActive: true,
     artworkMaxSizeMB: policy.artworkMaxSizeMB,
     storageLimitBytes: policy.storageLimitBytes,
     maxArtworks: policy.maxArtworks,
-    features: policy.features, 
+    features: policy.features,
   };
 }

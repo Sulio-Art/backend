@@ -1,173 +1,184 @@
-import Event from '../model/eventManagment.Model.js';
-import mongoose from 'mongoose';
+import asyncHandler from "express-async-handler";
+import Event from "../model/eventManagment.Model.js";
+import mongoose from "mongoose";
 
-const createEvent = async (req, res) => {
-  try {
-    const { title, startTime, endTime } = req.body;
-    if (!title || !startTime) {
-      return res
-        .status(400)
-        .json({ message: "Title and start time are required" });
-    }
+/**
+ * @desc    Create a new event
+ * @route   POST /api/events
+ * @access  Private
+ */
+const createEvent = asyncHandler(async (req, res) => {
+  const { title, startTime, endTime } = req.body;
 
-    if (endTime && new Date(endTime) < new Date(startTime)) {
-      return res
-        .status(400)
-        .json({ message: "End time cannot be before the start time." });
-    }
-
-    const newEvent = new Event({
-      ...req.body,
-      userId: req.user.id,
-    });
-    const savedEvent = await newEvent.save();
-    res.status(201).json(savedEvent);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+  if (endTime && new Date(endTime) < new Date(startTime)) {
+    res.status(400);
+    throw new Error("End time cannot be before the start time.");
   }
-};
 
-const getAllEvents = async (req, res) => {
-  try {
-    const filter = { userId: req.user.id };
+  const newEvent = new Event({
+    ...req.body,
+    userId: req.user.id,
+  });
 
-    const events = await Event.find(filter).sort({ startTime: -1 }).lean();
+  const savedEvent = await newEvent.save();
+  res.status(201).json(savedEvent);
+});
 
-    const totalEngagement = events.reduce((sum, event) => {
-      return sum + (event.participants ? event.participants.length : 0);
-    }, 0);
+/**
+ * @desc    Get all events for the logged-in user
+ * @route   GET /api/events
+ * @access  Private
+ */
+const getAllEvents = asyncHandler(async (req, res) => {
+  const events = await Event.find({ userId: req.user.id })
+    .sort({ startTime: -1 })
+    .lean();
 
-    const totalEvents = events.length;
+  const totalEngagement = events.reduce((sum, event) => {
+    return sum + (event.participants ? event.participants.length : 0);
+  }, 0);
 
-    const totalPages = 1;
-    const currentPage = 1;
+  const totalEvents = events.length;
 
-    res.status(200).json({
-      events,
-      totalEvents,
-      totalEngagement,
-      currentPage,
-      totalPages,
-    });
-  } catch (error) {
-    console.error("[Backend Error] in getAllEvents:", error);
-    res.status(500).json({ message: "Server Error", error: error.message });
+  res.status(200).json({
+    events,
+    totalEvents,
+    totalEngagement,
+    currentPage: 1,
+    totalPages: 1,
+  });
+});
+
+/**
+ * @desc    Get a single event by ID
+ * @route   GET /api/events/:id
+ * @access  Private
+ */
+const getEventById = asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid Event ID");
   }
-};
 
-const getEventById = async (req, res) => {
-  try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: "Invalid Event ID" });
-    }
-    const event = await Event.findById(req.params.id);
-    if (!event || event.userId.toString() !== req.user.id) {
-      return res
-        .status(404)
-        .json({ message: "Event not found or user not authorized" });
-    }
-    res.status(200).json(event);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+  const event = await Event.findOne({
+    _id: req.params.id,
+    userId: req.user.id,
+  });
+
+  if (!event) {
+    res.status(404);
+    throw new Error("Event not found or user not authorized");
   }
-};
 
-const updateEvent = async (req, res) => {
-  try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: "Invalid Event ID" });
-    }
+  res.status(200).json(event);
+});
 
-    const { startTime, endTime } = req.body;
-    if (startTime && endTime && new Date(endTime) < new Date(startTime)) {
-      return res
-        .status(400)
-        .json({ message: "End time cannot be before the start time." });
-    }
-
-    const event = await Event.findById(req.params.id);
-    if (!event) {
-      return res.status(404).json({ message: "Event not found" });
-    }
-    if (event.userId.toString() !== req.user.id) {
-      return res
-        .status(403)
-        .json({ message: "User not authorized to update this event" });
-    }
-    const updatedEvent = await Event.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-    res.status(200).json(updatedEvent);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+/**
+ * @desc    Update an event
+ * @route   PUT /api/events/:id
+ * @access  Private
+ */
+const updateEvent = asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid Event ID");
   }
-};
 
-const deleteEvent = async (req, res) => {
-  try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: "Invalid Event ID" });
-    }
-    const event = await Event.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user.id,
-    });
-    if (!event) {
-      return res
-        .status(404)
-        .json({ message: "Event not found or user not authorized" });
-    }
-    res.status(200).json({ message: "Event deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+  const { startTime, endTime } = req.body;
+  if (startTime && endTime && new Date(endTime) < new Date(startTime)) {
+    res.status(400);
+    throw new Error("End time cannot be before the start time.");
   }
-};
 
-const joinEvent = async (req, res) => {
-  try {
-    const eventId = req.params.id;
-    const userId = req.user.id;
-    if (!mongoose.Types.ObjectId.isValid(eventId)) {
-      return res.status(400).json({ message: "Invalid Event ID" });
-    }
+  const updatedEvent = await Event.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user.id },
+    req.body,
+    { new: true, runValidators: true }
+  );
 
-    const updatedEvent = await Event.findByIdAndUpdate(
-      eventId,
-      { $addToSet: { participants: userId } },
-      { new: true }
-    );
-    if (!updatedEvent) {
-      return res.status(404).json({ message: "Event not found" });
-    }
-    res.status(200).json(updatedEvent);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+  if (!updatedEvent) {
+    res.status(404);
+    throw new Error("Event not found or user not authorized to update");
   }
-};
 
-const leaveEvent = async (req, res) => {
-  try {
-    const eventId = req.params.id;
-    const userId = req.user.id;
-    if (!mongoose.Types.ObjectId.isValid(eventId)) {
-      return res.status(400).json({ message: "Invalid Event ID" });
-    }
+  res.status(200).json(updatedEvent);
+});
 
-    const updatedEvent = await Event.findByIdAndUpdate(
-      eventId,
-      { $pull: { participants: userId } },
-      { new: true }
-    );
-    if (!updatedEvent) {
-      return res.status(404).json({ message: "Event not found" });
-    }
-    res.status(200).json(updatedEvent);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error: error.message });
+/**
+ * @desc    Delete an event
+ * @route   DELETE /api/events/:id
+ * @access  Private
+ */
+const deleteEvent = asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid Event ID");
   }
-};
+
+  const event = await Event.findOneAndDelete({
+    _id: req.params.id,
+    userId: req.user.id,
+  });
+
+  if (!event) {
+    res.status(404);
+    throw new Error("Event not found or user not authorized");
+  }
+
+  res.status(200).json({ message: "Event deleted successfully" });
+});
+
+/**
+ * @desc    Join an event
+ * @route   POST /api/events/:id/join
+ * @access  Private
+ */
+const joinEvent = asyncHandler(async (req, res) => {
+  const eventId = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(eventId)) {
+    res.status(400);
+    throw new Error("Invalid Event ID");
+  }
+
+  const updatedEvent = await Event.findByIdAndUpdate(
+    eventId,
+    { $addToSet: { participants: req.user.id } },
+    { new: true }
+  );
+
+  if (!updatedEvent) {
+    res.status(404);
+    throw new Error("Event not found");
+  }
+
+  res.status(200).json(updatedEvent);
+});
+
+/**
+ * @desc    Leave an event
+ * @route   POST /api/events/:id/leave
+ * @access  Private
+ */
+const leaveEvent = asyncHandler(async (req, res) => {
+  const eventId = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(eventId)) {
+    res.status(400);
+    throw new Error("Invalid Event ID");
+  }
+
+  const updatedEvent = await Event.findByIdAndUpdate(
+    eventId,
+    { $pull: { participants: req.user.id } },
+    { new: true }
+  );
+
+  if (!updatedEvent) {
+    res.status(404);
+    throw new Error("Event not found");
+  }
+
+  res.status(200).json(updatedEvent);
+});
 
 export {
   createEvent,

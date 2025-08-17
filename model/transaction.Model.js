@@ -20,7 +20,7 @@ const transactionSchema = new mongoose.Schema(
     provider: String,
     paypalOrderId: { type: String, unique: true, sparse: true },
     details: mongoose.Schema.Types.Mixed,
-  },
+  },    // need razor pay model too
   { timestamps: true }
 );
 

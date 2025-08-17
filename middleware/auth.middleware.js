@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import asyncHandler from "express-async-handler";
-import User from "../model/user.model.js";
-import Subscription from "../model/subscription.Model.js";
+import { syncUserWithSubscription } from "../services/subscriptionSync.Service.js";
 
 export const protect = asyncHandler(async (req, res, next) => {
   let token;
@@ -25,56 +24,11 @@ export const protect = asyncHandler(async (req, res, next) => {
       throw new Error("Not authorized, token invalid");
     }
 
-    const user = await User.findById(decoded.id).select("-password");
+    const { user, subscription } = await syncUserWithSubscription(decoded.id);
+
     if (!user) {
       res.status(401);
-      throw new Error("User not found");
-    }
-
-    let subscription = await Subscription.findOne({ userId: user._id });
-
-    if (!subscription) {
-      subscription = await Subscription.create({
-        userId: user._id,
-        plan: "free",
-        status: "active",
-        amount: 0,
-        billingCycle: "monthly",
-        startDate: new Date(),
-        endDate: null,
-      });
-      user.subscriptionId = subscription._id;
-      user.currentPlan = "free";
-      await user.save();
-    }
-
-    let needsUserUpdate = false;
-
-    if (
-      subscription.status === "trial" &&
-      subscription.endDate &&
-      new Date() > new Date(subscription.endDate)
-    ) {
-      console.log(
-        `[Auth Middleware] Trial expired for user ${user._id}. Downgrading.`
-      );
-
-      subscription.plan = "free";
-      subscription.status = "expired";
-      await subscription.save();
-
-      user.currentPlan = "free";
-      needsUserUpdate = true;
-    }
-
-    if (user.currentPlan !== subscription.plan) {
-      console.log(`[Auth Middleware] Syncing user plan for ${user._id}.`);
-      user.currentPlan = subscription.plan;
-      needsUserUpdate = true;
-    }
-
-    if (needsUserUpdate) {
-      await user.save();
+      throw new Error("User not found.");
     }
 
     req.user = user;

@@ -1,5 +1,3 @@
-
-
 import User from "../model/user.model.js";
 import Subscription from "../model/subscription.Model.js";
 import Otp from "../model/otp.model.js";
@@ -32,12 +30,16 @@ export const register = asyncHandler(async (req, res) => {
     throw new Error("All fields are required.");
   }
   const userExists = await User.findOne({ email });
+
+  
   if (userExists) {
-    res.status(409);
-    throw new Error(
-      "An account with this email already exists. Please log in."
-    );
+    
+    return res.status(409).json({
+      message: "An account with this email already exists. Please log in.",
+    });
   }
+ 
+
   const otp = crypto.randomInt(100000, 999999).toString();
   await Otp.findOneAndUpdate(
     { email },
@@ -99,12 +101,16 @@ export const sendVerificationOtp = asyncHandler(async (req, res) => {
     throw new Error("Email is required.");
   }
   const existingUser = await User.findOne({ email });
+
+  
   if (existingUser) {
-    res.status(409);
-    throw new Error(
-      "An account with this email already exists. Please log in."
-    );
+   
+    return res.status(409).json({
+      message: "An account with this email already exists. Please log in.",
+    });
   }
+  
+
   const otp = crypto.randomInt(100000, 999999).toString();
   await Otp.findOneAndUpdate(
     { email },
@@ -175,7 +181,7 @@ export const finalizePreverifiedRegistration = asyncHandler(
       email,
       password,
       isVerified: true,
-      currentPlan: "free", 
+      currentPlan: "free",
     });
     await newUser.save();
 
@@ -184,7 +190,7 @@ export const finalizePreverifiedRegistration = asyncHandler(
     const newSubscription = await Subscription.create({
       userId: newUser._id,
       plan: "free",
-      status: "trial", 
+      status: "trial",
       amount: 0,
       billingCycle: "trial",
       startDate: new Date(),
@@ -326,7 +332,7 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
     instagramUsername: instagramUsername,
     instagramAccessToken: instagramAccessToken,
     isVerified: true,
-    currentPlan: "free", 
+    currentPlan: "free",
   });
   await newUser.save();
 
@@ -334,8 +340,8 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
   trialEndDate.setDate(trialEndDate.getDate() + 90);
   const newSubscription = await Subscription.create({
     userId: newUser._id,
-    plan: "free", 
-    status: "trial", 
+    plan: "free",
+    status: "trial",
     amount: 0,
     billingCycle: "trial",
     startDate: new Date(),
