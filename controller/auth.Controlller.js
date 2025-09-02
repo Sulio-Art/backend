@@ -79,7 +79,7 @@ export const login = asyncHandler(async (req, res) => {
   const token = generateToken(user._id);
   res.status(200).json({
     message: "Login successful",
-    token,
+    backendToken: token,
     user: {
       _id: user._id,
       name: `${user.firstName} ${user.lastName}`,

@@ -60,7 +60,7 @@ const startServer = async () => {
     app.use("/api/customers", customerRoutes);
     app.use("/api/diary", diaryRoutes);
     app.use("/api/events", eventRoutes);
-    app.use("/profiles", profileRoutes);
+    app.use("/api/profiles", profileRoutes);
     app.use("/api/dashboard", dashboardRoutes);
     app.use("/api/transactions", transactionRoutes);
     app.use("/api/subscriptions", subscriptionRoutes);

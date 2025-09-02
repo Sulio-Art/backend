@@ -1,7 +1,7 @@
 import Chat from '../model/chat.Model.js';
 import User from "../model/user.model.js";
 import Profile from "../model/profile.Model.js";
-import { callChatbot } from "../services/chatbotService.js";
+import { callChatbot, callApiForTest } from "../services/chatbotService.js";
 
 const PLAN_QUERY_LIMITS = {
   free: 10,
@@ -88,11 +88,71 @@ export const getChatHistory = async (req, res) => {
   }
 };
 
-/**
- * @desc    Save a chatbot setting for the logged-in user
- * @route   POST /api/chat/settings
- * @access  Private
- */
+
+export const handleTestChat = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { messages, activeStep } = req.body;
+
+    if (!messages || !Array.isArray(messages) || !activeStep) {
+      return res
+        .status(400)
+        .json({ message: "A message history array and activeStep are required." });
+    }
+
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ message: "User profile not found." });
+    }
+
+    const settingKey = activeStep.toLowerCase().replace(/\s+/g, "-");
+    
+    const userSystemPrompt = profile.chatbotSettings.get(settingKey) ||
+      "You are a helpful and friendly assistant for a talented artist. Be polite and concise.";
+
+    const responseContent = await callApiForTest(userSystemPrompt, messages);
+
+    res.status(200).json({ response: responseContent });
+
+  } catch (error) {
+    console.error("Handle Test Chat Error:", error.message);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+export const updateChatbotSettings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const newSettings = req.body; 
+
+    if (!newSettings || typeof newSettings !== 'object') {
+      return res.status(400).json({ message: "Invalid settings format provided." });
+    }
+
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found." });
+    }
+
+    Object.keys(newSettings).forEach(key => {
+      profile.chatbotSettings.set(key, newSettings[key]);
+    });
+
+    await profile.save();
+    
+    const updatedSettingsObject = Object.fromEntries(profile.chatbotSettings);
+
+    res.status(200).json({
+      message: "Chatbot settings updated successfully.",
+      chatbotSettings: updatedSettingsObject,
+    });
+
+  } catch (error) {
+    console.error("Update Chatbot Settings Error:", error.message);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 export const saveChatbotSetting = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -106,13 +166,14 @@ export const saveChatbotSetting = async (req, res) => {
 
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      { $set: { isChatbotConfigured: true } },
+      { $set: { userId } }, 
       { upsert: true, new: true }
     );
-
+    
     const settingKey = setting.toLowerCase().replace(/\s+/g, "-");
 
     profile.chatbotSettings.set(settingKey, value);
+    profile.isChatbotConfigured = true;
 
     await profile.save();
 
