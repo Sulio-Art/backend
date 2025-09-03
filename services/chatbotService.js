@@ -4,111 +4,100 @@ import User from "../model/user.model.js";
 
 const CHATBOT_API_URL = process.env.CHATBOT_API_URL;
 
-const PREDEFINED_SYSTEM_PROMPT = `You are an AI chatbot that helps an artist manage their users.
-Your task is to reply to the users that chat with the artist.
-You will act and respond as if you ARE the artist. Only in extreme cases, if you are specifically and repeatedly asked about being an an AI, should you disclose your identity.
+if (!CHATBOT_API_URL) {
+  console.error("FATAL ERROR: CHATBOT_API_URL environment variable is not set.");
+  process.exit(1); 
+}
 
-You will be provided with specific instructions from the artist on how to respond. These instructions will be appended below and may include:
-
-- Greetings: How to greet the user at the start of the conversation.
-- Background: Information about the artist's life, style, and how they talk.
-- Other specific topics like handling commissions, questions about damaged artwork, etc.
-
-There can be instances where this specific information is not provided by the artist for a particular topic. In such cases, you must remain in character as the artist, be polite, professional, and helpful. If you cannot answer a question, politely state that you will get back to them soon.
-
-Adhere strictly to the artist's instructions that follow.
----
-ARTIST'S INSTRUCTIONS:
-`;
-
-export const callApiForTest = async (userSystemPrompt, conversationHistory) => {
+// This is our single, unified function that talks to the SIMPLE API at your URL.
+// It is built to satisfy the server's demand for `query` and `system-prompt`.
+const callSimpleChatAPI = async (systemPrompt, query) => {
   try {
-    // The system message now combines the predefined text and the artist's input
-    const systemMessage = {
-      role: "system",
-      content: PREDEFINED_SYSTEM_PROMPT + userSystemPrompt,
-    };
-
-    const fullMessages = [systemMessage, ...conversationHistory];
-
-    console.log("Sending POST request to:", CHATBOT_API_URL);
-    
     const { data } = await axios.post(
       CHATBOT_API_URL,
       {
-        messages: fullMessages,
-        model: "llama-3.3-70b-versatile",
+        "system-prompt": systemPrompt, // Field 1 the server wants
+        "query": query,             // Field 2 the server wants
       },
       {
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       }
     );
 
-    const responseContent = data.choices[0]?.message?.content;
-    
-    if (!responseContent) {
-        console.error("Could not find content in API response:", JSON.stringify(data, null, 2));
-        return "Sorry, I received an unexpected response from the AI service."
+    // --- ROBUST RESPONSE HANDLING ---
+    // The server sometimes returns a raw string, and sometimes an object.
+    // This code handles both possibilities correctly.
+    if (typeof data === 'string') {
+      return data; // If the response is just text, return it directly.
+    }
+    if (data && typeof data.response === 'string') {
+      return data.response; // If it's an object with a 'response' key, return that.
+    }
+    // This is a fallback for the complex Groq-like response, just in case.
+    if (data?.choices?.[0]?.message?.content) {
+      return data.choices[0].message.content;
     }
     
-    return responseContent;
+    // If we can't find the text in any expected format, we must report an error.
+    console.error("Could not find a valid response string in API response body:", JSON.stringify(data, null, 2));
+    throw new Error("Invalid or unexpected response structure from AI service.");
 
   } catch (error) {
-    console.error("Error in callApiForTest service:", error.message);
+    console.error("--- ERROR IN callSimpleChatAPI SERVICE ---");
     if (error.response) {
-      console.error('API Error Response:', error.response.data);
+      console.error(`API Error Status: ${error.response.status}`);
+      console.error('API Error Response Body:', JSON.stringify(error.response.data, null, 2));
+    } else {
+      console.error('Non-API Error:', error.message);
     }
-    return "The AI assistant is currently unavailable due to a technical error.";
+    throw new Error("The AI assistant is currently unavailable due to a technical error.");
   }
 };
 
+const PREDEFINED_SYSTEM_PROMPT = `You are an AI chatbot that helps an artist manage their users...`; // Your full predefined prompt
 
-export const callChatbot = async (query, igid, task) => {
-  try {
-    const artist = await User.findOne({ instagramUserId: igid });
-    if (!artist) {
-      throw new Error(`No artist found for Instagram ID: ${igid}`);
-    }
+// This function prepares the data for the TEST CHAT.
+export const getTestChatResponse = async (userSystemPrompt, conversationHistory) => {
+  // 1. Flatten the previous conversation into a simple string to provide context.
+  const historyAsString = conversationHistory
+    .slice(0, -1) // Exclude the very last user message which will be the query
+    .map(msg => `${msg.role}: ${msg.content}`)
+    .join('\n');
 
-    const profile = await Profile.findOne({ userId: artist._id });
+  // 2. Create the full system prompt by combining the base prompt, the user's setup, and the flattened history.
+  const fullSystemPrompt = `${PREDEFINED_SYSTEM_PROMPT}${userSystemPrompt}\n\n--- Previous Conversation ---\n${historyAsString}`;
 
-    const settingKey = `setup-${task.toLowerCase().replace(/\s+/g, "-")}`;
+  // 3. Extract the most recent user message to use as the main "query".
+  const lastUserMessage = conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1] : null;
+  const query = lastUserMessage && lastUserMessage.role === 'user' ? lastUserMessage.content : "";
 
-    let systemPrompt = profile?.chatbotSettings?.get(settingKey);
-
-    if (!systemPrompt) {
-      systemPrompt =
-        "You are a helpful and friendly assistant for a talented artist. Be polite and concise.";
-      console.log(`No custom prompt for task '${task}'. Using default prompt.`);
-    }
-
-    console.log(`Calling Hugging Face API for task '${task}'...`);
-    const { data } = await axios.post(
-      CHATBOT_API_URL,
-      {
-        query: query,
-        "system-prompt": systemPrompt,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    return {
-      response:
-        data.response || "I am sorry, I could not find an answer to that.",
-      summary: data.summary || "No summary provided.",
-    };
-  } catch (error) {
-    console.error("Error in callChatbot service:", error.message);
-    return {
-      response:
-        "The artist's AI assistant is currently unavailable. Please try again later.",
-      summary: "Service error.",
-    };
+  if (!query) {
+    // This can happen if the history is empty or ends with an assistant message.
+    return "Please type a message to start the conversation.";
   }
+
+  // 4. Call the unified API function with the data formatted correctly.
+  return callSimpleChatAPI(fullSystemPrompt, query);
+};
+
+// This function prepares the data for the LIVE INSTAGRAM CHAT.
+export const getLiveChatResponse = async (query, igid, task) => {
+  const artist = await User.findOne({ instagramUserId: igid });
+  if (!artist) {
+    throw new Error(`No artist found for Instagram ID: ${igid}`);
+  }
+
+  const profile = await Profile.findOne({ userId: artist._id });
+  const settingKey = `setup-${task.toLowerCase().replace(/\s+/g, "-")}`;
+  const userSystemPrompt = profile?.chatbotSettings?.get(settingKey) || 
+    "You are a helpful and friendly assistant for a talented artist. Be polite and concise.";
+
+  // 1. Create the full system prompt.
+  const fullSystemPrompt = PREDEFINED_SYSTEM_PROMPT + userSystemPrompt;
+
+  // 2. Call the unified API function. The user's message is the query.
+  const response = await callSimpleChatAPI(fullSystemPrompt, query);
+  
+  // 3. Return it in the format the handleChat controller expects.
+  return { response, summary: "No summary available." }; 
 };
