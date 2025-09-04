@@ -24,7 +24,7 @@ const profileSchema = new mongoose.Schema(
     chatbotSettings: {
       type: Map,
       of: String,
-      default: {},
+      default: () => new Map(),
     },
     website: String,
     location: String,
