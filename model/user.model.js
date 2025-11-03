@@ -6,7 +6,11 @@ const userSchema = new mongoose.Schema(
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
+<<<<<<< HEAD
     phoneNumber: { type: String, unique: true, sparse: true },
+=======
+    phoneNumber: { type: String,unique: true, sparse: true },
+>>>>>>> a25f19837f3526ea107db938ba4b0d608b67163f
     password: { type: String, required: true, unique: true, sparse: true },
     isVerified: { type: Boolean, default: false },
 
