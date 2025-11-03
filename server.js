@@ -17,7 +17,6 @@ import adminRoutes from "./route/admin.Routes.js";
 import subscriptionRoutes from "./route/subscription.Routes.js";
 import verifyOtpRoutes from "./route/verifyOtp.Routes.js";
 
-
 dotenv.config();
 const startServer = async () => {
   const app = express();
@@ -27,19 +26,30 @@ const startServer = async () => {
     await connectDB();
 
     const allowedOrigins = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(",")
+      ? process.env.ALLOWED_ORIGINS.split(",").map((item) => item.trim())
       : [];
 
     console.log(
-      `[CORS] Allowed origins configured: ${allowedOrigins.join(", ")}`
+      `[SERVER-STARTUP] Allowed origins configured: ${allowedOrigins.join(
+        ", "
+      )}`
     );
 
     const corsOptions = {
       origin: (origin, callback) => {
+        // --- BACKEND LOG 1 ---
+        console.log(
+          `[BACKEND-CORS-DEBUG] 1. Incoming request from origin: ${origin}`
+        );
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+          // --- BACKEND LOG 2 (SUCCESS) ---
+          console.log(`[BACKEND-CORS-DEBUG] 2. SUCCESS: Origin is allowed.`);
           callback(null, true);
         } else {
-          console.error(`[CORS] Blocked origin: ${origin}`);
+          // --- BACKEND LOG 2 (FAILURE) ---
+          console.error(
+            `[BACKEND-CORS-DEBUG] 2. FAILURE: Origin is NOT in the allowed list.`
+          );
           callback(new Error(`Origin '${origin}' not allowed by CORS`));
         }
       },
@@ -52,9 +62,7 @@ const startServer = async () => {
     app.use(cookieParser());
 
     app.use("/api/auth", authRoutes);
-
     app.use("/api/auth/verify-otp", verifyOtpRoutes);
-
     app.use("/api/artworks", artworkRoutes);
     app.use("/api/chat", chatRoutes);
     app.use("/api/customers", customerRoutes);
@@ -74,7 +82,9 @@ const startServer = async () => {
 
     app.listen(PORT, () =>
       console.log(
-        `Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
+        `Server running in ${
+          process.env.NODE_ENV || "development"
+        } mode on port ${PORT}`
       )
     );
   } catch (error) {

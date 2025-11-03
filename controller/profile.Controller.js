@@ -57,7 +57,6 @@ const createOrUpdateMyProfile = async (req, res) => {
       { userId: req.user.id },
       { $set: profileFields },
       { new: true, upsert: true, setDefaultsOnInsert: true }
-      
     ).populate(
       "userId",
       "firstName lastName email instagramUsername phoneNumber"
@@ -73,36 +72,18 @@ const createOrUpdateMyProfile = async (req, res) => {
 const getMyProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    let profile = await Profile.findOne({ userId: userId }).populate(
-      "userId",
+    let profile = await Profile.findOne({ userId: userId });
 
+    if (!profile) {
+      profile = await Profile.create({ userId: userId });
+    }
+
+    const finalProfile = await Profile.findById(profile._id).populate(
+      "userId",
       "firstName lastName email instagramUsername phoneNumber"
     );
 
-    if (!profile) {
-      console.log(
-        `No profile found for user ${userId}, creating a default one.`
-      );
-      profile = new Profile({
-        userId: userId,
-        bio: "Welcome to my profile! I'm excited to share my art.",
-        website: "",
-        location: "",
-        socialLinks: {
-          instagram: "",
-          twitter: "",
-          portfolio: "",
-        },
-      });
-      await profile.save();
-
-      await profile.populate(
-        "userId",
-        "firstName lastName email instagramUsername phoneNumber"
-      );
-    }
-
-    res.status(200).json(profile);
+    res.status(200).json(finalProfile);
   } catch (error) {
     console.error("Get My Profile Error:", error);
     res.status(500).json({ message: "Server Error", error: error.message });
@@ -117,7 +98,6 @@ const getProfileByUserId = async (req, res) => {
 
     const profile = await Profile.findOne({
       userId: req.params.userId,
-      
     }).populate("userId", "firstName lastName email phoneNumber");
 
     if (!profile) {
@@ -135,7 +115,6 @@ const getAllProfiles = async (req, res) => {
   try {
     const profiles = await Profile.find().populate(
       "userId",
-
       "firstName lastName email phoneNumber"
     );
     res.status(200).json(profiles);

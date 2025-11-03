@@ -144,6 +144,17 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     res.status(200).json({
       message: "Instagram login successful",
       token: appToken,
+      user: {
+        _id: user._id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        subscriptionStatus: user.subscriptionStatus, // You might need to populate this
+        currentPlan: user.currentPlan,
+        instagramUserId: user.instagramUserId,
+        role: user.role,
+    },
     });
   } else {
     console.log(

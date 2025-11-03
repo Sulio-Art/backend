@@ -1,95 +1,48 @@
-import Event from "../model/eventManagment.Model.js";
-import Transaction from "../model/transaction.Model.js";
-import Chat from "../model/chat.Model.js";
-import Profile from "../model/profile.Model.js";
-import Artwork from "../model/artWork.Model.js";
+import asyncHandler from "express-async-handler";
 import mongoose from "mongoose";
+import Artwork from "../model/artWork.Model.js";
+import Profile from "../model/profile.Model.js";
+// Note: We no longer need Chat, TestChat, or Transaction models here.
 
-/**
- * @desc    Get the onboarding status for the logged-in user
- * @route   GET /api/dashboard/onboarding-status
- * @access  Private
- */
-export const getOnboardingStatus = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const artworkCount = await Artwork.countDocuments({ createdBy: userId });
-    const hasUploadedArtwork = artworkCount > 0;
-    const profile = await Profile.findOne({ userId });
-    const isChatbotConfigured = profile ? profile.isChatbotConfigured : false;
+export const getOnboardingStatus = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const artworkCount = await Artwork.countDocuments({ createdBy: userId });
+  const hasUploadedArtwork = artworkCount > 0;
+  const profile = await Profile.findOne({ userId });
+  const isChatbotConfigured = !!profile?.isChatbotConfigured;
 
-    res.status(200).json({
-      hasUploadedArtwork,
-      isChatbotConfigured,
-    });
-  } catch (error) {
-    console.error("Onboarding Status Error:", error);
-    res.status(500).json({ message: "Server Error" });
+  res.status(200).json({
+    hasUploadedArtwork,
+    isChatbotConfigured,
+  });
+});
+
+export const getDashboardStats = asyncHandler(async (req, res) => {
+  const userId = new mongoose.Types.ObjectId(req.user.id);
+
+  // Step 1: Perform one fast query to get the user's profile.
+  const userProfile = await Profile.findOne({ userId });
+
+  // Safeguard: If for any reason the profile doesn't exist, send a 404.
+  // This should not happen if the user is logged in.
+  if (!userProfile) {
+    return res.status(404).json({ message: "User profile not found." });
   }
-};
 
-/**
- * @desc    Get aggregated stats for the main dashboard
- * @route   GET /api/dashboard/stats
- * @access  Private
- */
-export const getDashboardStats = async (req, res) => {
-  try {
-    const userId = new mongoose.Types.ObjectId(req.user.id);
+  // Step 2: Define placeholder data for items you will connect later.
+  const totalEvents = 0;
+  const recentTransactions = [];
 
-    const totalEvents = await Event.countDocuments({ userId });
-    const messagesSent = await Chat.countDocuments({ userId });
-
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-    const artworkSoldToday = await Transaction.countDocuments({
-      userId,
-      status: "completed",
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    const recentTransactions = await Transaction.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    const countryStats = await Transaction.aggregate([
-      {
-        $match: {
-          userId: userId,
-          "customerInfo.country": { $exists: true, $ne: null },
-        },
-      },
-      { $group: { _id: "$customerInfo.country", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 },
-      { $project: { _id: 0, name: "$_id", count: "$count" } },
-    ]);
-
-    const sentimentResult = await Chat.aggregate([
-      { $match: { userId: userId, sentiment: { $exists: true } } },
-      { $group: { _id: null, avgSentiment: { $avg: "$sentiment" } } },
-    ]);
-
-    const sentimentScore =
-      sentimentResult.length > 0
-        ? parseFloat(sentimentResult[0].avgSentiment.toFixed(3))
-        : 0;
-
-    const ageGroups = [];
-
-    res.status(200).json({
-      totalEvents,
-      messagesSent,
-      artworkSoldToday,
-      countryStats,
-      recentTransactions,
-      ageGroups,
-      sentimentScore,
-    });
-  } catch (error) {
-    console.error("Dashboard Stats Error:", error);
-    res.status(500).json({ message: "Server Error" });
-  }
-};
+  // Step 3: Assemble and send the final response.
+  // All the primary data is now read directly from the userProfile object.
+  res.status(200).json({
+    messagesSent: userProfile.messagesSent,
+    sentimentScore: userProfile.sentimentScore,
+    artworkSoldToday: userProfile.artworkSoldToday,
+    countryStats: userProfile.countryStats,
+    ageGroups: userProfile.ageGroups,
+    // Include the placeholder data
+    totalEvents,
+    recentTransactions,
+  });
+});
