@@ -154,7 +154,7 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
         currentPlan: user.currentPlan,
         instagramUserId: user.instagramUserId,
         role: user.role,
-    },
+      },
     });
   } else {
     console.log(
@@ -241,6 +241,33 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
   const longLivedToken = longLivedTokenData.access_token;
   console.log("[CONNECT INSTAGRAM] 3. Successfully received long-lived token.");
 
+  // [START] >>>>>>>>>> NEW LOGIC ADDED HERE <<<<<<<<<<
+  let meData = {}; // Initialize to an empty object to ensure it's defined
+  console.log(
+    "[CONNECT INSTAGRAM] 3a. Performing new request to /me endpoint for review."
+  );
+  try {
+    const meApiUrl = `https://graph.instagram.com/me?fields=id,user_id&access_token=${longLivedToken}`;
+    const meResponse = await fetch(meApiUrl);
+    meData = await meResponse.json(); // Assign the response to meData
+
+    if (!meResponse.ok) {
+      console.error("[CONNECT INSTAGRAM] ERROR from /me endpoint:", meData);
+      meData = {}; // Reset on error to prevent saving faulty data
+    } else {
+      console.log(
+        "[CONNECT INSTAGRAM] 3b. Successfully received data from /me endpoint:",
+        meData
+      );
+    }
+  } catch (err) {
+    console.error(
+      "[CONNECT INSTAGRAM] CATCH BLOCK ERROR during /me request:",
+      err
+    );
+  }
+  // [END] >>>>>>>>>> END OF ADDED LOGIC <<<<<<<<<<
+
   const instagramAppScopedId = tokenData.user_id;
   const fields =
     "id,username,profile_picture_url,followers_count,biography,website";
@@ -277,6 +304,7 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
     userToUpdate.instagramUserId
   );
 
+  // [START] >>>>>>>>>> NEW DATA ASSIGNMENT ADDED HERE <<<<<<<<<<
   userToUpdate.instagramUserId = profileData.id;
   userToUpdate.instagramAccessToken = longLivedToken;
   userToUpdate.instagramUsername = profileData.username;
@@ -285,9 +313,17 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
   userToUpdate.instagramFollowersCount = profileData.followers_count || 0;
   userToUpdate.instagramBio = profileData.biography || null;
   userToUpdate.instagramWebsite = profileData.website || null;
+
+  // Assign the new IDs from the /me endpoint
+  userToUpdate.igid = meData.user_id || null; // "user_id" is saved as "igid"
+  userToUpdate.asid = meData.id || null; // "id" is saved as "asid"
+
   console.log(
     "[CONNECT INSTAGRAM] 7. Assigned new data to user object. Preparing to save..."
   );
+  console.log(`   - Saving igid: ${userToUpdate.igid}`);
+  console.log(`   - Saving asid: ${userToUpdate.asid}`);
+  // [END] >>>>>>>>>> END OF DATA ASSIGNMENT <<<<<<<<<<
 
   await userToUpdate.save();
   console.log("[CONNECT INSTAGRAM] 8. Save operation complete.");

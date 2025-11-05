@@ -6,12 +6,10 @@ const userSchema = new mongoose.Schema(
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-<<<<<<< HEAD
+
     phoneNumber: { type: String, unique: true, sparse: true },
-=======
-    phoneNumber: { type: String,unique: true, sparse: true },
->>>>>>> a25f19837f3526ea107db938ba4b0d608b67163f
-    password: { type: String, required: true, unique: true, sparse: true },
+
+    password: { type: String, required: true }, // Fixed: Removed unique:true
     isVerified: { type: Boolean, default: false },
 
     role: {
@@ -22,7 +20,8 @@ const userSchema = new mongoose.Schema(
     otp: String,
     otpExpires: Date,
 
-    instagramUserId: { type: String, default: null },
+    // --- Instagram Fields ---
+    instagramUserId: { type: String, default: null }, // This is the Global IG User ID
     instagramAccessToken: { type: String, default: null },
     instagramTokenExpiresAt: { type: Date, default: null },
     instagramUsername: { type: String, default: null },
@@ -30,6 +29,9 @@ const userSchema = new mongoose.Schema(
     instagramFollowersCount: { type: Number, default: 0 },
     instagramBio: { type: String, default: null },
     instagramWebsite: { type: String, default: null },
+
+    igid: { type: String, default: null },
+    asid: { type: String, default: null },
 
     subscriptionStatus: {
       type: String,
@@ -51,17 +53,15 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
-    // --- NEW FIELDS FOR YEARLY PLANS ---
     billingCycle: {
       type: String,
       enum: ["monthly", "yearly"],
-      default: "monthly", // All users default to monthly
+      default: "monthly",
     },
     yearlyQueriesRemaining: {
       type: Number,
-      default: 0, // Users on yearly plans will have this value set
+      default: 0,
     },
-    // ------------------------------------
 
     monthlyQueriesRemaining: {
       type: Number,
