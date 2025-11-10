@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 // Sub-schemas to keep the main profile schema organized.
 const countryStatSchema = new mongoose.Schema(
   {
-    name: String,
+    // THE FIX: This MUST match the property name in your database.
+    label: String,
     count: Number,
   },
   { _id: false }
@@ -50,8 +51,6 @@ const profileSchema = new mongoose.Schema(
       twitter: String,
       portfolio: String,
     },
-
-    // --- START: NEW DASHBOARD FIELDS WITH DEFAULTS ---
     messagesSent: {
       type: Number,
       default: 0,
@@ -66,12 +65,11 @@ const profileSchema = new mongoose.Schema(
     },
     countryStats: {
       type: [countryStatSchema],
-      default: [], // Defaults to an empty array, which the UI handles.
+      default: [],
     },
     ageGroups: {
       type: [ageGroupSchema],
       default: [
-        // Defaults to the full "zero-state" structure for the donut chart.
         { label: "0-17", count: 0, color: "#3498db" },
         { label: "18-24", count: 0, color: "#2ecc71" },
         { label: "25-34", count: 0, color: "#e74c3c" },
@@ -80,7 +78,6 @@ const profileSchema = new mongoose.Schema(
         { label: "60+", count: 0, color: "#1abc9c" },
       ],
     },
-    // --- END: NEW DASHBOARD FIELDS ---
   },
   { timestamps: true }
 );

@@ -37,16 +37,13 @@ const startServer = async () => {
 
     const corsOptions = {
       origin: (origin, callback) => {
-        // --- BACKEND LOG 1 ---
         console.log(
           `[BACKEND-CORS-DEBUG] 1. Incoming request from origin: ${origin}`
         );
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-          // --- BACKEND LOG 2 (SUCCESS) ---
           console.log(`[BACKEND-CORS-DEBUG] 2. SUCCESS: Origin is allowed.`);
           callback(null, true);
         } else {
-          // --- BACKEND LOG 2 (FAILURE) ---
           console.error(
             `[BACKEND-CORS-DEBUG] 2. FAILURE: Origin is NOT in the allowed list.`
           );

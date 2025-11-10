@@ -6,7 +6,7 @@ import {
   sendVerificationOtp,
   verifyHeroOtp,
   requestPasswordReset,
-  verifyPasswordResetOtp, 
+  verifyPasswordResetOtp,
   resetPassword,
   logout,
   getMe,
@@ -19,7 +19,7 @@ import {
   getInstagramAuthUrl,
   handleBusinessLogin,
   connectInstagramAccount,
-} from "../controller/instagram.Controller.js";
+} from "../controller/instagram.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
