@@ -9,67 +9,9 @@ import {
 } from "../services/chatbotService.js";
 import { updateChatbotSettingsForUser } from "../services/profile.Service.js";
 
-// A helper function to manage query logic for any user
+// Bypass limit for testing
 const checkAndDecrementQueries = async (user) => {
-  const MONTHLY_PLAN_QUERY_LIMITS = {
-    free: 10,
-    plus: 30,
-    premium: 100,
-    pro: Infinity,
-  };
-  const YEARLY_PLAN_QUERY_LIMITS = {
-    free: 120,
-    plus: 360,
-    premium: 1200,
-    pro: Infinity,
-  };
-
-  const now = new Date();
-
-  if (user.billingCycle === "yearly") {
-    const limit = YEARLY_PLAN_QUERY_LIMITS[user.currentPlan] || 120;
-    const oneYearAgo = new Date(now);
-    oneYearAgo.setFullYear(now.getFullYear() - 1);
-
-    if (user.queryCountResetAt < oneYearAgo) {
-      user.yearlyQueriesRemaining = limit;
-      user.queryCountResetAt = now;
-      await user.save();
-    }
-
-    if (user.yearlyQueriesRemaining <= 0) {
-      throw new Error(
-        `You have no remaining queries for this year. Your plan will reset on the anniversary of your subscription.`
-      );
-    }
-
-    await User.updateOne(
-      { _id: user._id },
-      { $inc: { yearlyQueriesRemaining: -1 } }
-    );
-  } else {
-    const limit = MONTHLY_PLAN_QUERY_LIMITS[user.currentPlan] || 10;
-    const startOfMonth = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-    );
-
-    if (user.queryCountResetAt < startOfMonth) {
-      user.monthlyQueriesRemaining = limit;
-      user.queryCountResetAt = now;
-      await user.save();
-    }
-
-    if (user.monthlyQueriesRemaining <= 0) {
-      throw new Error(
-        `You have no remaining queries for this month. Please upgrade your plan for more.`
-      );
-    }
-
-    await User.updateOne(
-      { _id: user._id },
-      { $inc: { monthlyQueriesRemaining: -1 } }
-    );
-  }
+  return;
 };
 
 export const handleTestChat = asyncHandler(async (req, res) => {
@@ -78,23 +20,16 @@ export const handleTestChat = asyncHandler(async (req, res) => {
 
   if (!messages || !Array.isArray(messages) || !activeStep || !conversationId) {
     res.status(400);
-    throw new Error(
-      "A message history, activeStep, and conversationId are required."
-    );
+    throw new Error("Missing required fields.");
   }
 
+  // 1. Basic User/Profile Validation
   const user = await User.findById(userId);
   if (!user) {
     res.status(404);
     throw new Error("User not found.");
   }
-
-  try {
-    await checkAndDecrementQueries(user);
-  } catch (error) {
-    res.status(403);
-    throw new Error(error.message);
-  }
+  await checkAndDecrementQueries(user);
 
   const profile = await Profile.findOne({ userId });
   if (!profile) {
@@ -102,16 +37,57 @@ export const handleTestChat = asyncHandler(async (req, res) => {
     throw new Error("User profile not found.");
   }
 
-  const settingKey = activeStep.toLowerCase().replace(/\s+/g, "-");
-  const userSystemPrompt =
-    profile.chatbotSettings.get(settingKey) || "You are a helpful assistant.";
+  // 2. Determine the DB Key (e.g., "Setup Greetings" -> "setup-greetings")
+  const dbKey = activeStep.toLowerCase().replace(/\s+/g, "-");
 
-  const responseContent = await getTestChatResponse(userSystemPrompt, messages);
+  // 3. Get Existing Settings to give context to AI
+  let currentSetting = "You are a helpful assistant.";
+  if (
+    profile.chatbotSettings &&
+    typeof profile.chatbotSettings.get === "function"
+  ) {
+    const stored = profile.chatbotSettings.get(dbKey);
+    if (stored) currentSetting = stored;
+  }
 
+  // 4. Get AI Response (Returns JSON String)
+  // Note: We pass activeStep to the service now
+  let aiRawResponse = await getTestChatResponse(
+    currentSetting,
+    messages,
+    activeStep
+  );
+
+  let finalUserResponse = aiRawResponse; // Default to raw if parsing fails
+
+  // 5. PARSE & SAVE LOGIC
+  try {
+    const parsed = JSON.parse(aiRawResponse);
+
+    // A. Extract the message for the user
+    if (parsed.response) {
+      finalUserResponse = parsed.response;
+    }
+
+    // B. Extract and SAVE the database update
+    if (parsed.database_update && parsed.database_update.trim().length > 0) {
+      console.log(`[AUTO-SAVE] Updating ${dbKey}:`, parsed.database_update);
+
+      // Use MongoDB $set with dynamic key path
+      const updatePath = `chatbotSettings.${dbKey}`;
+      await Profile.updateOne(
+        { userId: userId },
+        { $set: { [updatePath]: parsed.database_update } }
+      );
+    }
+  } catch (e) {
+    console.log("Response was not JSON, skipping auto-save.");
+  }
+
+  // 6. Save Chat History to DB
   const userMessage = messages.filter((msg) => msg.role === "user").pop();
-
-  if (userMessage && responseContent) {
-    const assistantMessage = { role: "assistant", content: responseContent };
+  if (userMessage && finalUserResponse) {
+    const assistantMessage = { role: "assistant", content: finalUserResponse };
     await TestChat.findOneAndUpdate(
       { conversationId, userId },
       {
@@ -122,7 +98,8 @@ export const handleTestChat = asyncHandler(async (req, res) => {
     );
   }
 
-  res.status(200).json({ response: responseContent });
+  // 7. Respond to Frontend (Clean text only)
+  res.status(200).json({ response: finalUserResponse });
 });
 
 export const handleChat = asyncHandler(async (req, res) => {
@@ -139,13 +116,7 @@ export const handleChat = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("No artist is configured for this Instagram account.");
   }
-
-  try {
-    await checkAndDecrementQueries(artist);
-  } catch (error) {
-    res.status(403);
-    throw new Error(error.message);
-  }
+  await checkAndDecrementQueries(artist);
 
   const chatbotResponse = await getLiveChatResponse(query, igid, task);
 
@@ -168,40 +139,13 @@ export const getChatHistory = asyncHandler(async (req, res) => {
   res.status(200).json({ chatHistory: chatHistory || [] });
 });
 
-// --- THIS IS THE FUNCTION WITH LOGGING ADDED ---
 export const updateChatbotSettings = asyncHandler(async (req, res) => {
-  // --- BACKEND LOG 3 ---
-  console.log(
-    "[BACKEND-CONTROLLER-DEBUG] 3. updateChatbotSettings endpoint hit."
-  );
-  console.log("[BACKEND-CONTROLLER-DEBUG] 4. Request body received:", req.body);
-
   const userId = req.user.id;
   const newSettings = req.body;
-
-  if (
-    !newSettings ||
-    typeof newSettings !== "object" ||
-    Object.keys(newSettings).length === 0
-  ) {
-    res.status(400);
-    throw new Error("Invalid or empty settings format provided.");
-  }
-
-  // --- BACKEND LOG 5 ---
-  console.log(
-    "[BACKEND-CONTROLLER-DEBUG] 5. Calling the profile service to update settings..."
-  );
   const updatedSettings = await updateChatbotSettingsForUser(
     userId,
     newSettings
   );
-
-  // --- BACKEND LOG 10 ---
-  console.log(
-    "[BACKEND-CONTROLLER-DEBUG] 10. Profile service finished. Sending response to client."
-  );
-
   res.status(200).json({
     message: "Chatbot settings updated successfully.",
     chatbotSettings: updatedSettings,
