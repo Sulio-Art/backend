@@ -126,7 +126,7 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     "[handleBusinessLogin] 4. Successfully received profile data:",
     profileData,
   );
-  console.log("[handleBusinessLogin] Instagram User ID:", profileData.id);
+  console.log("[handleBusinessLogin] Instagram profile data", profileData);
 
   const meApiUrl = `https://graph.instagram.com/me?fields=id,user_id&access_token=${longLivedToken}`;
   const meResponse = await fetch(meApiUrl);
@@ -308,7 +308,7 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
     "[CONNECT INSTAGRAM] 4. Successfully received profile data:",
     profileData,
   );
-  console.log("[CONNECT INSTAGRAM] Instagram User ID (profile id):", profileData.id);
+  console.log("[CONNECT INSTAGRAM] Instagram User profile:", profileData);
 
   console.log(
     `[CONNECT INSTAGRAM] 5. Finding user with MongoDB ID: ${loggedInUserId}`,
