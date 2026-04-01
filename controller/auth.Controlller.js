@@ -313,7 +313,7 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
     throw new Error("Invalid or expired completion token.");
   }
 
-  const { instagramId, instagramUsername, instagramAccessToken } = decoded;
+  const { instagramId, instagramUsername, instagramAccessToken, profileData, igid, asid } = decoded;
 
   let userExists = await User.findOne({
     $or: [{ instagramUserId: instagramId }, { email: email }],
@@ -331,6 +331,12 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
     instagramUserId: instagramId,
     instagramUsername: instagramUsername,
     instagramAccessToken: instagramAccessToken,
+    instagramProfilePictureUrl: profileData?.profile_picture_url || null,
+    instagramFollowersCount: profileData?.followers_count || 0,
+    instagramBio: profileData?.biography || null,
+    instagramWebsite: profileData?.website || null,
+    igid: igid || null,
+    asid: asid || null,
     isVerified: true,
     currentPlan: "free",
   });

@@ -110,7 +110,7 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     "[handleBusinessLogin] 3. Successfully received long-lived token.",
   );
 
-  const profileUrl = `https://graph.instagram.com/${instagramAppScopedId}?fields=id,username&access_token=${longLivedToken}`;
+  const profileUrl = `https://graph.instagram.com/${instagramAppScopedId}?fields=id,username,profile_picture_url,followers_count,biography,website&access_token=${longLivedToken}`;
   const profileResponse = await fetch(profileUrl);
   const profileData = await profileResponse.json();
   if (!profileResponse.ok) {
@@ -126,6 +126,14 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     "[handleBusinessLogin] 4. Successfully received profile data:",
     profileData,
   );
+  console.log("[handleBusinessLogin] Instagram User ID:", profileData.id);
+
+  const meApiUrl = `https://graph.instagram.com/me?fields=id,user_id&access_token=${longLivedToken}`;
+  const meResponse = await fetch(meApiUrl);
+  const meData = await meResponse.json();
+  console.log("[handleBusinessLogin] /me data:", meData);
+  console.log("[handleBusinessLogin] IG ID (igid):", meData.user_id);
+  console.log("[handleBusinessLogin] AS ID (asid):", meData.id);
 
   console.log(
     `[handleBusinessLogin] 5. Checking database for user with Instagram ID: ${profileData.id}`,
@@ -136,7 +144,15 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     console.log(
       `[handleBusinessLogin] 6a. User FOUND. ID: ${user._id}. Logging them in.`,
     );
+    user.instagramUserId = profileData.id;
     user.instagramAccessToken = longLivedToken;
+    user.instagramUsername = profileData.username;
+    user.instagramProfilePictureUrl = profileData.profile_picture_url || null;
+    user.instagramFollowersCount = profileData.followers_count || 0;
+    user.instagramBio = profileData.biography || null;
+    user.instagramWebsite = profileData.website || null;
+    user.igid = meData.user_id || null;
+    user.asid = meData.id || null;
     await user.save();
     const appToken = generateToken(user._id);
     console.log("[handleBusinessLogin] 7a. Sending 200 OK with login token.");
@@ -164,6 +180,9 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
       instagramId: profileData.id,
       instagramUsername: profileData.username,
       instagramAccessToken: longLivedToken,
+      profileData: profileData,
+      igid: meData.user_id,
+      asid: meData.id,
     };
     const completionToken = jwt.sign(
       partialTokenPayload,
@@ -259,6 +278,8 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
         "[CONNECT INSTAGRAM] 3b. Successfully received data from /me endpoint:",
         meData,
       );
+      console.log("[CONNECT INSTAGRAM] IG ID (igid):", meData.user_id);
+      console.log("[CONNECT INSTAGRAM] AS ID (asid):", meData.id);
     }
   } catch (err) {
     console.error(
@@ -287,6 +308,7 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
     "[CONNECT INSTAGRAM] 4. Successfully received profile data:",
     profileData,
   );
+  console.log("[CONNECT INSTAGRAM] Instagram User ID (profile id):", profileData.id);
 
   console.log(
     `[CONNECT INSTAGRAM] 5. Finding user with MongoDB ID: ${loggedInUserId}`,

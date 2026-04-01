@@ -20,7 +20,7 @@ import verifyOtpRoutes from "./route/verifyOtp.Routes.js";
 dotenv.config();
 const startServer = async () => {
   const app = express();
-  const PORT = process.env.PORT || 5000;
+  const PORT = process.env.PORT || 8080;
 
   try {
     await connectDB();
@@ -31,21 +31,21 @@ const startServer = async () => {
 
     console.log(
       `[SERVER-STARTUP] Allowed origins configured: ${allowedOrigins.join(
-        ", "
-      )}`
+        ", ",
+      )}`,
     );
 
     const corsOptions = {
       origin: (origin, callback) => {
         console.log(
-          `[BACKEND-CORS-DEBUG] 1. Incoming request from origin: ${origin}`
+          `[BACKEND-CORS-DEBUG] 1. Incoming request from origin: ${origin}`,
         );
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
           console.log(`[BACKEND-CORS-DEBUG] 2. SUCCESS: Origin is allowed.`);
           callback(null, true);
         } else {
           console.error(
-            `[BACKEND-CORS-DEBUG] 2. FAILURE: Origin is NOT in the allowed list.`
+            `[BACKEND-CORS-DEBUG] 2. FAILURE: Origin is NOT in the allowed list.`,
           );
           callback(new Error(`Origin '${origin}' not allowed by CORS`));
         }
@@ -81,8 +81,8 @@ const startServer = async () => {
       console.log(
         `Server running in ${
           process.env.NODE_ENV || "development"
-        } mode on port ${PORT}`
-      )
+        } mode on port ${PORT}`,
+      ),
     );
   } catch (error) {
     console.error("Failed to start server:", error);

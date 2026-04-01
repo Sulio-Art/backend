@@ -31,10 +31,13 @@ export const handleTestChat = asyncHandler(async (req, res) => {
   }
   await checkAndDecrementQueries(user);
 
-  const profile = await Profile.findOne({ userId });
+  let profile = await Profile.findOne({ userId });
   if (!profile) {
-    res.status(404);
-    throw new Error("User profile not found.");
+    profile = await Profile.create({
+      userId,
+      isChatbotConfigured: true,
+    });
+    console.log("[handleTestChat] Created new profile for user:", userId);
   }
 
   // 2. Determine the DB Key (e.g., "Setup Greetings" -> "setup-greetings")
@@ -83,6 +86,12 @@ export const handleTestChat = asyncHandler(async (req, res) => {
   } catch (e) {
     console.log("Response was not JSON, skipping auto-save.");
   }
+
+  // 5b. Mark chatbot as configured after any successful interaction
+  await Profile.updateOne(
+    { userId: userId },
+    { $set: { isChatbotConfigured: true } }
+  );
 
   // 6. Save Chat History to DB
   const userMessage = messages.filter((msg) => msg.role === "user").pop();
