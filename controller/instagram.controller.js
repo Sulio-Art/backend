@@ -15,8 +15,8 @@ export const getInstagramAuthUrl = asyncHandler(async (req, res) => {
       .status(400)
       .throw(
         new Error(
-          "A valid 'state' parameter ('login' or 'connect') is required."
-        )
+          "A valid 'state' parameter ('login' or 'connect') is required.",
+        ),
       );
   }
   const authUrl = new URL("https://www.instagram.com/oauth/authorize");
@@ -32,7 +32,7 @@ export const getInstagramAuthUrl = asyncHandler(async (req, res) => {
   authUrl.searchParams.set("scope", scopes.join(","));
   authUrl.searchParams.set("state", state);
   console.log(
-    `[getInstagramAuthUrl] Generated auth URL for state '${state}': ${authUrl.toString()}`
+    `[getInstagramAuthUrl] Generated auth URL for state '${state}': ${authUrl.toString()}`,
   );
   res.status(200).json({ authUrl: authUrl.toString() });
 });
@@ -42,7 +42,7 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
   const { code } = req.body;
   if (!code) {
     console.error(
-      "[handleBusinessLogin] ERROR: No authorization code provided."
+      "[handleBusinessLogin] ERROR: No authorization code provided.",
     );
     res.status(400);
     throw new Error("Instagram authorization code is required.");
@@ -62,17 +62,17 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     {
       method: "POST",
       body: tokenFormData,
-    }
+    },
   );
   const tokenData = await tokenResponse.json();
   if (!tokenResponse.ok) {
     console.error(
       "[handleBusinessLogin] ERROR from Instagram token API:",
-      tokenData
+      tokenData,
     );
     throw new Error(
       tokenData.error_message ||
-        "Failed to get short-lived token from Instagram."
+        "Failed to get short-lived token from Instagram.",
     );
   }
   let shortLivedToken, instagramAppScopedId;
@@ -89,7 +89,7 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
   } else {
     console.error("Unknown Instagram token response format:", tokenData);
     throw new Error(
-      "Could not parse the access token from Instagram's response."
+      "Could not parse the access token from Instagram's response.",
     );
   }
 
@@ -99,15 +99,15 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
   if (!longLivedTokenResponse.ok) {
     console.error(
       "[handleBusinessLogin] ERROR from Instagram long-lived token API:",
-      longLivedTokenData
+      longLivedTokenData,
     );
     throw new Error(
-      longLivedTokenData.error.message || "Failed to get long-lived token."
+      longLivedTokenData.error.message || "Failed to get long-lived token.",
     );
   }
   const longLivedToken = longLivedTokenData.access_token;
   console.log(
-    "[handleBusinessLogin] 3. Successfully received long-lived token."
+    "[handleBusinessLogin] 3. Successfully received long-lived token.",
   );
 
   const profileUrl = `https://graph.instagram.com/${instagramAppScopedId}?fields=id,username&access_token=${longLivedToken}`;
@@ -116,25 +116,25 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
   if (!profileResponse.ok) {
     console.error(
       "[handleBusinessLogin] ERROR from Instagram profile API:",
-      profileData
+      profileData,
     );
     throw new Error(
-      profileData.error.message || "Failed to fetch Instagram profile."
+      profileData.error.message || "Failed to fetch Instagram profile.",
     );
   }
   console.log(
     "[handleBusinessLogin] 4. Successfully received profile data:",
-    profileData
+    profileData,
   );
 
   console.log(
-    `[handleBusinessLogin] 5. Checking database for user with Instagram ID: ${profileData.id}`
+    `[handleBusinessLogin] 5. Checking database for user with Instagram ID: ${profileData.id}`,
   );
   let user = await User.findOne({ instagramUserId: profileData.id });
 
   if (user) {
     console.log(
-      `[handleBusinessLogin] 6a. User FOUND. ID: ${user._id}. Logging them in.`
+      `[handleBusinessLogin] 6a. User FOUND. ID: ${user._id}. Logging them in.`,
     );
     user.instagramAccessToken = longLivedToken;
     await user.save();
@@ -158,7 +158,7 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     });
   } else {
     console.log(
-      "[handleBusinessLogin] 6b. User NOT FOUND. Preparing for registration completion."
+      "[handleBusinessLogin] 6b. User NOT FOUND. Preparing for registration completion.",
     );
     const partialTokenPayload = {
       instagramId: profileData.id,
@@ -168,10 +168,10 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     const completionToken = jwt.sign(
       partialTokenPayload,
       process.env.JWT_SECRET,
-      { expiresIn: "15m" }
+      { expiresIn: "15m" },
     );
     console.log(
-      "[handleBusinessLogin] 7b. Sending 201 Created with completionToken."
+      "[handleBusinessLogin] 7b. Sending 201 Created with completionToken.",
     );
     console.log("--- [handleBusinessLogin] END ---\n");
     res.status(201).json({
@@ -191,7 +191,7 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
   const loggedInUserId = req.user.id;
 
   console.log(
-    `[CONNECT INSTAGRAM] 1. Received request for user ID: ${loggedInUserId}`
+    `[CONNECT INSTAGRAM] 1. Received request for user ID: ${loggedInUserId}`,
   );
   if (!code) {
     console.error("[CONNECT INSTAGRAM] ERROR: No authorization code provided.");
@@ -209,20 +209,20 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
 
   const tokenResponse = await fetch(
     "https://api.instagram.com/oauth/access_token",
-    { method: "POST", body: tokenFormData }
+    { method: "POST", body: tokenFormData },
   );
   const tokenData = await tokenResponse.json();
   if (!tokenResponse.ok) {
     console.error(
       "[CONNECT INSTAGRAM] ERROR from Instagram token API:",
-      tokenData
+      tokenData,
     );
     throw new Error(
-      tokenData.error_message || "Failed to connect with Instagram."
+      tokenData.error_message || "Failed to connect with Instagram.",
     );
   }
   console.log(
-    "[CONNECT INSTAGRAM] 2. Successfully received short-lived token from Instagram."
+    "[CONNECT INSTAGRAM] 2. Successfully received short-lived token from Instagram.",
   );
 
   const shortLivedToken = tokenData.access_token;
@@ -232,10 +232,10 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
   if (!longLivedTokenResponse.ok) {
     console.error(
       "[CONNECT INSTAGRAM] ERROR from Instagram long-lived token API:",
-      longLivedTokenData
+      longLivedTokenData,
     );
     throw new Error(
-      longLivedTokenData.error.message || "Failed to get long-lived token."
+      longLivedTokenData.error.message || "Failed to get long-lived token.",
     );
   }
   const longLivedToken = longLivedTokenData.access_token;
@@ -244,7 +244,7 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
   // [START] >>>>>>>>>> NEW LOGIC ADDED HERE <<<<<<<<<<
   let meData = {}; // Initialize to an empty object to ensure it's defined
   console.log(
-    "[CONNECT INSTAGRAM] 3a. Performing new request to /me endpoint for review."
+    "[CONNECT INSTAGRAM] 3a. Performing new request to /me endpoint for review.",
   );
   try {
     const meApiUrl = `https://graph.instagram.com/me?fields=id,user_id&access_token=${longLivedToken}`;
@@ -257,13 +257,13 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
     } else {
       console.log(
         "[CONNECT INSTAGRAM] 3b. Successfully received data from /me endpoint:",
-        meData
+        meData,
       );
     }
   } catch (err) {
     console.error(
       "[CONNECT INSTAGRAM] CATCH BLOCK ERROR during /me request:",
-      err
+      err,
     );
   }
   // [END] >>>>>>>>>> END OF ADDED LOGIC <<<<<<<<<<
@@ -277,34 +277,33 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
   if (!profileResponse.ok) {
     console.error(
       "[CONNECT INSTAGRAM] ERROR from Instagram profile API:",
-      profileData
+      profileData,
     );
     throw new Error(
-      profileData.error.message || "Failed to fetch Instagram profile data."
+      profileData.error.message || "Failed to fetch Instagram profile data.",
     );
   }
   console.log(
     "[CONNECT INSTAGRAM] 4. Successfully received profile data:",
-    profileData
+    profileData,
   );
 
   console.log(
-    `[CONNECT INSTAGRAM] 5. Finding user with MongoDB ID: ${loggedInUserId}`
+    `[CONNECT INSTAGRAM] 5. Finding user with MongoDB ID: ${loggedInUserId}`,
   );
   const userToUpdate = await User.findById(loggedInUserId);
   if (!userToUpdate) {
     console.error(
-      `[CONNECT INSTAGRAM] FATAL ERROR: User with ID ${loggedInUserId} not found in database.`
+      `[CONNECT INSTAGRAM] FATAL ERROR: User with ID ${loggedInUserId} not found in database.`,
     );
     res.status(404);
     throw new Error("User to connect was not found in the database.");
   }
   console.log(
     "[CONNECT INSTAGRAM] 6. Found user. Current IG User ID:",
-    userToUpdate.instagramUserId
+    userToUpdate.instagramUserId,
   );
 
-  // [START] >>>>>>>>>> NEW DATA ASSIGNMENT ADDED HERE <<<<<<<<<<
   userToUpdate.instagramUserId = profileData.id;
   userToUpdate.instagramAccessToken = longLivedToken;
   userToUpdate.instagramUsername = profileData.username;
@@ -314,22 +313,20 @@ export const connectInstagramAccount = asyncHandler(async (req, res) => {
   userToUpdate.instagramBio = profileData.biography || null;
   userToUpdate.instagramWebsite = profileData.website || null;
 
-  // Assign the new IDs from the /me endpoint
   userToUpdate.igid = meData.user_id || null; // "user_id" is saved as "igid"
   userToUpdate.asid = meData.id || null; // "id" is saved as "asid"
 
   console.log(
-    "[CONNECT INSTAGRAM] 7. Assigned new data to user object. Preparing to save..."
+    "[CONNECT INSTAGRAM] 7. Assigned new data to user object. Preparing to save...",
   );
   console.log(`   - Saving igid: ${userToUpdate.igid}`);
   console.log(`   - Saving asid: ${userToUpdate.asid}`);
-  // [END] >>>>>>>>>> END OF DATA ASSIGNMENT <<<<<<<<<<
 
   await userToUpdate.save();
   console.log("[CONNECT INSTAGRAM] 8. Save operation complete.");
 
   console.log(
-    "[CONNECT INSTAGRAM] 9. Sending simple success response to frontend."
+    "[CONNECT INSTAGRAM] 9. Sending simple success response to frontend.",
   );
   console.log("--- [CONNECT INSTAGRAM] END ---\n");
 
