@@ -159,7 +159,7 @@ export const handleBusinessLogin = asyncHandler(async (req, res) => {
     console.log("--- [handleBusinessLogin] END ---\n");
     res.status(200).json({
       message: "Instagram login successful",
-      token: appToken,
+      backendToken: appToken,
       user: {
         _id: user._id,
         name: `${user.firstName} ${user.lastName}`,
