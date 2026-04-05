@@ -1,5 +1,6 @@
+import "dotenv/config";
+import * as Sentry from "@sentry/node";
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./conifg/database.js";
 import cookieParser from "cookie-parser";
@@ -17,7 +18,12 @@ import adminRoutes from "./route/admin.Routes.js";
 import subscriptionRoutes from "./route/subscription.Routes.js";
 import verifyOtpRoutes from "./route/verifyOtp.Routes.js";
 
-dotenv.config();
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: 1.0,
+  environment: process.env.NODE_ENV || "development",
+});
+
 const startServer = async () => {
   const app = express();
   const PORT = process.env.PORT || 8080;
@@ -53,11 +59,10 @@ const startServer = async () => {
       credentials: true,
     };
 
+    app.use(Sentry.Handlers.requestHandler());
     app.use(cors(corsOptions));
-
     app.use(express.json());
     app.use(cookieParser());
-
     app.use("/api/auth", authRoutes);
     app.use("/api/auth/verify-otp", verifyOtpRoutes);
     app.use("/api/artworks", artworkRoutes);
@@ -75,6 +80,8 @@ const startServer = async () => {
       res.send("Sulio Art API is running...");
     });
 
+    app.use(Sentry.Handlers.errorHandler());
+
     app.use(errorHandler);
 
     app.listen(PORT, () =>
@@ -85,6 +92,8 @@ const startServer = async () => {
       ),
     );
   } catch (error) {
+    Sentry.captureException(error);
+
     console.error("Failed to start server:", error);
     process.exit(1);
   }
