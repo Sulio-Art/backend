@@ -18,15 +18,16 @@ import adminRoutes from "./route/admin.Routes.js";
 import subscriptionRoutes from "./route/subscription.Routes.js";
 import verifyOtpRoutes from "./route/verifyOtp.Routes.js";
 
-Sentry.init({
-  dsn: process.env.SENTRY_DSN,
-  tracesSampleRate: 1.0,
-  environment: process.env.NODE_ENV || "development",
-});
-
 const startServer = async () => {
   const app = express();
   const PORT = process.env.PORT || 8080;
+
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: 1.0,
+    environment: process.env.NODE_ENV || "development",
+    integrations: [Sentry.expressIntegration({ app })],
+  });
 
   try {
     await connectDB();
@@ -59,7 +60,6 @@ const startServer = async () => {
       credentials: true,
     };
 
-    app.use(Sentry.Handlers.requestHandler());
     app.use(cors(corsOptions));
     app.use(express.json());
     app.use(cookieParser());
@@ -80,7 +80,7 @@ const startServer = async () => {
       res.send("Sulio Art API is running...");
     });
 
-    app.use(Sentry.Handlers.errorHandler());
+    Sentry.setupExpressErrorHandler(app);
 
     app.use(errorHandler);
 
