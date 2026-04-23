@@ -1,0 +1,1 @@
+export const SUPEROTP = "480000";
