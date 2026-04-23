@@ -31,26 +31,23 @@ export const register = asyncHandler(async (req, res) => {
   }
   const userExists = await User.findOne({ email });
 
-  
   if (userExists) {
-    
     return res.status(409).json({
       message: "An account with this email already exists. Please log in.",
     });
   }
- 
 
   const otp = crypto.randomInt(100000, 999999).toString();
   await Otp.findOneAndUpdate(
     { email },
     { email, otp },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   try {
     await sendEmail(
       email,
       "Verify Your Email for Sulio AI",
-      `Your verification code is: ${otp}\nThis code will expire in 10 minutes.`
+      `Your verification code is: ${otp}\nThis code will expire in 10 minutes.`,
     );
     res.status(200).json({
       message:
@@ -102,26 +99,23 @@ export const sendVerificationOtp = asyncHandler(async (req, res) => {
   }
   const existingUser = await User.findOne({ email });
 
-  
   if (existingUser) {
-   
     return res.status(409).json({
       message: "An account with this email already exists. Please log in.",
     });
   }
-  
 
   const otp = crypto.randomInt(100000, 999999).toString();
   await Otp.findOneAndUpdate(
     { email },
     { email, otp },
-    { upsert: true, new: true }
+    { upsert: true, new: true },
   );
   try {
     await sendEmail(
       email,
       "Verify Your Email for Sulio AI",
-      `Your verification code is: ${otp}\nThis code will expire in 10 minutes.`
+      `Your verification code is: ${otp}\nThis code will expire in 10 minutes.`,
     );
     res.status(200).json({ message: "OTP sent successfully." });
   } catch (emailError) {
@@ -163,7 +157,7 @@ export const finalizePreverifiedRegistration = asyncHandler(
     } catch (err) {
       res.status(401);
       throw new Error(
-        "Invalid or expired registration session. Please start over."
+        "Invalid or expired registration session. Please start over.",
       );
     }
     const { email } = decoded;
@@ -171,7 +165,7 @@ export const finalizePreverifiedRegistration = asyncHandler(
     if (userExists) {
       res.status(409);
       throw new Error(
-        "An account with this email already exists. Please log in."
+        "An account with this email already exists. Please log in.",
       );
     }
 
@@ -208,7 +202,7 @@ export const finalizePreverifiedRegistration = asyncHandler(
       token: loginToken,
       user: { _id: newUser._id, email: newUser.email },
     });
-  }
+  },
 );
 
 export const requestPasswordReset = asyncHandler(async (req, res) => {
@@ -222,12 +216,12 @@ export const requestPasswordReset = asyncHandler(async (req, res) => {
   await Otp.findOneAndUpdate(
     { email },
     { email, otp },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   await sendEmail(
     email,
     "Your Password Reset OTP",
-    `Your password reset OTP is: ${otp}\nThis code will expire in 10 minutes.`
+    `Your password reset OTP is: ${otp}\nThis code will expire in 10 minutes.`,
   );
   res
     .status(200)
@@ -313,7 +307,14 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
     throw new Error("Invalid or expired completion token.");
   }
 
-  const { instagramId, instagramUsername, instagramAccessToken, profileData, igid, asid } = decoded;
+  const {
+    instagramId,
+    instagramUsername,
+    instagramAccessToken,
+    profileData,
+    igid,
+    asid,
+  } = decoded;
 
   let userExists = await User.findOne({
     $or: [{ instagramUserId: instagramId }, { email: email }],
@@ -368,6 +369,7 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
       name: `${newUser.firstName} ${newUser.lastName}`,
       email: newUser.email,
       instagramUserId: newUser.instagramUserId,
+      //role: newUser.role
     },
   });
 });
@@ -398,13 +400,13 @@ export const sendInstagramEmailOtp = asyncHandler(async (req, res) => {
   await Otp.findOneAndUpdate(
     { email },
     { email, otp },
-    { upsert: true, new: true }
+    { upsert: true, new: true },
   );
   try {
     await sendEmail(
       email,
       "Verify Your Email for Sulio AI",
-      `Your verification code is: ${otp}\nThis code will expire in 10 minutes.`
+      `Your verification code is: ${otp}\nThis code will expire in 10 minutes.`,
     );
     res.status(200).json({ message: "OTP sent successfully to your email." });
   } catch (emailError) {

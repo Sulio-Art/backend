@@ -43,7 +43,7 @@ const callGroqAPI = async (messages) => {
 export const getTestChatResponse = async (
   userSystemPrompt,
   conversationHistory,
-  activeStep
+  activeStep,
 ) => {
   // 1. Specific Context for the current step
   const stepContext = `Current Configuration Step: "${activeStep}". 

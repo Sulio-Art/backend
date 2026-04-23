@@ -10,11 +10,11 @@ const profileSchema = new mongoose.Schema(
     bio: String,
     profilePicture: {
       type: String,
-      default: "https://i.imgur.com/6VBx3io.png",
+      default: null,
     },
     coverPhoto: {
       type: String,
-      default: "https://i.imgur.com/8V254hN.png",
+      default: null,
     },
     isChatbotConfigured: {
       type: Boolean,
@@ -38,7 +38,7 @@ const profileSchema = new mongoose.Schema(
       default: 0,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Standard Profile collection
