@@ -25,9 +25,7 @@ export const getInstagramAuthUrl = asyncHandler(async (req, res) => {
   authUrl.searchParams.set("response_type", "code");
   const scopes = [
     "instagram_business_basic",
-    "instagram_business_content_publish",
-    "instagram_business_manage_comments",
-    "instagram_business_manage_messages",
+    "instagram_business_content_publish"
   ];
   authUrl.searchParams.set("scope", scopes.join(","));
   authUrl.searchParams.set("state", state);
