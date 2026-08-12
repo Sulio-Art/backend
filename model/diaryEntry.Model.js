@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { applyFieldEncryption } from "../conifg/encryptedFields.js";
 
 const artworkPhotoSchema = new mongoose.Schema(
   {
@@ -23,17 +24,18 @@ const diaryEntrySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    // These three are encrypted at rest, so the schema cannot enforce a length:
+    // validators run after the pre-save hook and would measure the ciphertext,
+    // which is far longer than the plaintext. The limits are enforced on the
+    // plaintext in dailyDiary.Controller.js instead.
     subject: {
       type: String,
-      maxlength: 100,
     },
     description: {
       type: String,
-      maxlength: 500,
     },
     studioLife: {
       type: String,
-      maxlength: 500,
     },
 
     artworkPhotos: {
@@ -43,5 +45,7 @@ const diaryEntrySchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+applyFieldEncryption(diaryEntrySchema, "DiaryEntry");
 
 export default mongoose.model("DiaryEntry", diaryEntrySchema);

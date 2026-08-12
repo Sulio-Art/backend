@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { applyFieldEncryption } from "../conifg/encryptedFields.js";
 
 const eventSchema = new mongoose.Schema(
   {
@@ -51,5 +52,7 @@ const eventSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+applyFieldEncryption(eventSchema, "Event");
 
 export default mongoose.model('Event', eventSchema);

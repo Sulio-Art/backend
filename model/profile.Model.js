@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { applyFieldEncryption } from "../conifg/encryptedFields.js";
 
 const profileSchema = new mongoose.Schema(
   {
@@ -40,6 +41,8 @@ const profileSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+applyFieldEncryption(profileSchema, "Profile");
 
 // Standard Profile collection
 const Profile =

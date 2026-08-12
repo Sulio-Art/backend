@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { applyFieldEncryption } from "../conifg/encryptedFields.js";
 
 const chatLogSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -10,5 +11,7 @@ const chatLogSchema = new mongoose.Schema({
     },
   ],
 });
+
+applyFieldEncryption(chatLogSchema, "ChatLog");
 
 export default mongoose.model("ChatLog", chatLogSchema);

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { applyFieldEncryption } from "../conifg/encryptedFields.js";
 const { Schema, model, Types } = mongoose;
 
 const artworkSchema = new Schema(
@@ -34,5 +35,7 @@ const artworkSchema = new Schema(
     timestamps: true,
   }
 );
+
+applyFieldEncryption(artworkSchema, "Artwork");
 
 export default model("Artwork", artworkSchema);

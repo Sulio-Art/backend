@@ -14,6 +14,7 @@ import {
   completeInstagramRegistration,
   sendInstagramEmailOtp,
   verifyInstagramEmailOtp,
+  deleteMyAccount,
 } from "../controller/auth.Controlller.js";
 import {
   getInstagramAuthUrl,
@@ -21,6 +22,7 @@ import {
   connectInstagramAccount,
 } from "../controller/instagram.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
+import optionalProtect from "../middleware/optionalProtect.js";
 
 const router = express.Router();
 
@@ -35,7 +37,13 @@ router.post("/check-email", checkEmailExists);
 router.post("/request-password-reset", requestPasswordReset);
 router.post("/verify-password-reset-otp", verifyPasswordResetOtp);
 router.post("/reset-password", resetPassword);
-router.get("/instagram/auth-url", getInstagramAuthUrl);
+router.delete("/account", protect, deleteMyAccount);
+/**
+ * `optionalProtect`, not `protect`: the login intent is reached by people who have
+ * no account yet, while the connect intent needs a session to bind the nonce to.
+ * The controller enforces that distinction.
+ */
+router.get("/instagram/auth-url", optionalProtect, getInstagramAuthUrl);
 router.post("/instagram/login", handleBusinessLogin);
 router.post("/instagram/connect", protect, connectInstagramAccount);
 router.post("/instagram/complete-registration", completeInstagramRegistration);

@@ -17,6 +17,43 @@ import diaryRoutes from "./route/dailylogs.Routes.js";
 import adminRoutes from "./route/admin.Routes.js";
 import subscriptionRoutes from "./route/subscription.Routes.js";
 import verifyOtpRoutes from "./route/verifyOtp.Routes.js";
+import metaRoutes from "./route/meta.Routes.js";
+import { assertEncryptionConfigured } from "./utils/encryption.js";
+
+/**
+ * Field encryption is pointless if the plaintext leaves by way of an error
+ * report. Sentry captures request bodies, headers and query strings, which is
+ * exactly where credentials and personal data live.
+ */
+const SENSITIVE_KEY = /pass|secret|token|otp|auth|cookie|key|email|phone/i;
+
+const scrub = (value, depth = 0) => {
+  if (depth > 6 || value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => scrub(item, depth + 1));
+
+  const output = {};
+  for (const [key, entry] of Object.entries(value)) {
+    output[key] = SENSITIVE_KEY.test(key)
+      ? "[redacted]"
+      : scrub(entry, depth + 1);
+  }
+  return output;
+};
+
+const scrubEvent = (event) => {
+  if (event.request) {
+    delete event.request.cookies;
+    if (event.request.data) event.request.data = scrub(event.request.data);
+    if (event.request.headers) event.request.headers = scrub(event.request.headers);
+    if (event.request.query_string) event.request.query_string = "[redacted]";
+  }
+  if (event.user) {
+    // Keep the id for correlation; drop everything that identifies a person.
+    event.user = event.user.id ? { id: event.user.id } : undefined;
+  }
+  if (event.extra) event.extra = scrub(event.extra);
+  return event;
+};
 
 const startServer = async () => {
   const app = express();
@@ -27,9 +64,15 @@ const startServer = async () => {
     tracesSampleRate: 1.0,
     environment: process.env.NODE_ENV || "development",
     integrations: [Sentry.expressIntegration({ app })],
+    sendDefaultPii: false,
+    beforeSend: scrubEvent,
   });
 
   try {
+    // Fail at boot rather than at the first write, when a missing key would
+    // mean either storing cleartext or throwing mid-request.
+    assertEncryptionConfigured();
+
     await connectDB();
 
     const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -75,6 +118,12 @@ const startServer = async () => {
     app.use("/api/transactions", transactionRoutes);
     app.use("/api/subscriptions", subscriptionRoutes);
     app.use("/api/admin", adminRoutes);
+    /**
+     * Meta's Deauthorize and Data Deletion Request callbacks. These are called by
+     * Meta, not by the browser, so they sit outside the CORS-guarded surface and
+     * authenticate themselves with `signed_request`.
+     */
+    app.use("/api/meta", metaRoutes);
 
     app.get("/", (req, res) => {
       res.send("Sulio Art API is running...");

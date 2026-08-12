@@ -7,9 +7,13 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/verifyEncryption.mjs && node scripts/verifyMetaCompliance.mjs",
     "dev": "nodemon -r dotenv/config server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "encrypt:verify": "node scripts/verifyEncryption.mjs",
+    "encrypt:keygen": "node -e \"const c=require('crypto');console.log('DATA_ENCRYPTION_KEY='+c.randomBytes(32).toString('base64'));console.log('BLIND_INDEX_KEY='+c.randomBytes(32).toString('base64'))\"",
+    "encrypt:backfill:dry": "node scripts/encryptExistingData.js",
+    "encrypt:backfill": "node scripts/encryptExistingData.js --apply --drop-legacy-indexes"
   },
   "dependencies": {
     "@paypal/checkout-server-sdk": "^1.0.3",

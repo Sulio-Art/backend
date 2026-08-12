@@ -6,7 +6,14 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import sendEmail from "../utils/sendEmails.js";
 import fetch from "node-fetch";
-import { SUPEROTP } from "../conifg/superotp.js";
+import { isSuperOtp } from "../conifg/superotp.js";
+import { hashMatches } from "../utils/encryption.js";
+import {
+  findRegistrationHandoff,
+  consumeRegistrationHandoff,
+  markHandoffEmailVerified,
+} from "../utils/oauthHandoff.js";
+import { runDeletionRequest } from "../services/accountDeletion.Service.js";
 
 export const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -131,7 +138,7 @@ export const verifyHeroOtp = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("Email and OTP are required.");
   }
-  if (otp === SUPEROTP) {
+  if (isSuperOtp(otp)) {
     const registrationToken = jwt.sign({ email }, process.env.JWT_SECRET, {
       expiresIn: "15m",
     });
@@ -141,7 +148,7 @@ export const verifyHeroOtp = asyncHandler(async (req, res) => {
     });
   }
   const tempOtp = await Otp.findOne({ email });
-  if (!tempOtp || tempOtp.otp !== otp) {
+  if (!tempOtp || !hashMatches(otp, tempOtp.otp, "Otp.otp")) {
     res.status(400);
     throw new Error("Invalid or expired OTP.");
   }
@@ -243,7 +250,7 @@ export const verifyPasswordResetOtp = asyncHandler(async (req, res) => {
   if (!email || !otp) {
     return res.status(400).json({ message: "Email and OTP are required." });
   }
-  if (otp === SUPEROTP) {
+  if (isSuperOtp(otp)) {
     return res.status(200).json({ message: "OTP verified successfully." });
   }
   const resetOtp = await Otp.findOne({ email, otp });
@@ -260,7 +267,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("User not found");
   }
-  if (otp === SUPEROTP) {
+  if (isSuperOtp(otp)) {
     user.password = newPassword;
     await user.save();
     return res
@@ -268,7 +275,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
       .json({ message: "Password reset successful. You can now login." });
   }
   const resetOtp = await Otp.findOne({ email });
-  if (!resetOtp || resetOtp.otp !== otp) {
+  if (!resetOtp || !hashMatches(otp, resetOtp.otp, "Otp.otp")) {
     res.status(400);
     throw new Error("Invalid or expired OTP");
   }
@@ -313,31 +320,35 @@ export const getMe = asyncHandler(async (req, res) => {
 });
 
 export const completeInstagramRegistration = asyncHandler(async (req, res) => {
-  const { completionToken, password, firstName, lastName, email } = req.body;
-  if (!completionToken || !password || !firstName || !lastName || !email) {
+  const { handoffId, password, firstName, lastName } = req.body;
+  if (!handoffId || !password || !firstName || !lastName) {
     res.status(400);
-    throw new Error("All fields and completion token are required.");
+    throw new Error(
+      "First name, last name, password and a registration handoff are required.",
+    );
   }
 
-  let decoded;
-  try {
-    decoded = jwt.verify(completionToken, process.env.JWT_SECRET);
-  } catch (err) {
-    res.status(401);
-    throw new Error("Invalid or expired completion token.");
+  /**
+   * The email is taken from the pending record, never from the request body —
+   * the same discipline as `finalizePreverifiedRegistration`, which reads it out
+   * of the registration token. Previously this endpoint trusted `req.body.email`
+   * and set `isVerified: true` regardless, so anyone could create a verified
+   * account against an address they did not control.
+   */
+  const pending = await consumeRegistrationHandoff(handoffId);
+  const email = pending.emailVerifiedFor;
+
+  if (!email) {
+    res.status(400);
+    throw new Error(
+      "Please verify your email address before completing registration.",
+    );
   }
 
-  const {
-    instagramId,
-    instagramUsername,
-    instagramAccessToken,
-    profileData,
-    igid,
-    asid,
-  } = decoded;
+  const profileData = pending.profileSnapshot || {};
 
   let userExists = await User.findOne({
-    $or: [{ instagramUserId: instagramId }, { email: email }],
+    $or: [{ instagramUserId: pending.instagramUserId }, { email: email }],
   });
   if (userExists) {
     res.status(409);
@@ -349,15 +360,15 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
     lastName,
     email,
     password,
-    instagramUserId: instagramId,
-    instagramUsername: instagramUsername,
-    instagramAccessToken: instagramAccessToken,
+    instagramUserId: pending.instagramUserId,
+    instagramUsername: pending.instagramUsername,
+    instagramAccessToken: pending.instagramAccessToken,
     instagramProfilePictureUrl: profileData?.profile_picture_url || null,
     instagramFollowersCount: profileData?.followers_count || 0,
     instagramBio: profileData?.biography || null,
     instagramWebsite: profileData?.website || null,
-    igid: igid || null,
-    asid: asid || null,
+    igid: pending.igid || null,
+    asid: pending.asid || null,
     isVerified: true,
     currentPlan: "free",
   });
@@ -395,17 +406,15 @@ export const completeInstagramRegistration = asyncHandler(async (req, res) => {
 });
 
 export const sendInstagramEmailOtp = asyncHandler(async (req, res) => {
-  const { email, completionToken } = req.body;
-  if (!email || !completionToken) {
+  const { email, handoffId } = req.body;
+  if (!email || !handoffId) {
     res.status(400);
-    throw new Error("Email and completion token are required.");
+    throw new Error("Email and a registration handoff are required.");
   }
-  try {
-    jwt.verify(completionToken, process.env.JWT_SECRET);
-  } catch (err) {
-    res.status(401);
-    throw new Error("Invalid or expired completion token.");
-  }
+
+  // Non-consuming: the caller may legitimately land here more than once (a resend,
+  // or a corrected address).
+  await findRegistrationHandoff(handoffId);
 
   const existingUser = await User.findOne({ email });
   if (existingUser) {
@@ -436,22 +445,74 @@ export const sendInstagramEmailOtp = asyncHandler(async (req, res) => {
 });
 
 export const verifyInstagramEmailOtp = asyncHandler(async (req, res) => {
-  const { email, otp } = req.body;
-  if (!email || !otp) {
+  const { email, otp, handoffId } = req.body;
+  if (!email || !otp || !handoffId) {
     res.status(400);
-    throw new Error("Email and OTP are required.");
+    throw new Error("Email, OTP and a registration handoff are required.");
   }
-  if (otp === SUPEROTP) {
-    return res.status(200).json({
-      message: "Email verified successfully. You can now set your password.",
-    });
+
+  await findRegistrationHandoff(handoffId);
+
+  if (!isSuperOtp(otp)) {
+    const tempOtp = await Otp.findOne({ email });
+    if (!tempOtp || !hashMatches(otp, tempOtp.otp, "Otp.otp")) {
+      res.status(400);
+      throw new Error("Invalid or expired OTP.");
+    }
+    await Otp.deleteOne({ email });
   }
-  const tempOtp = await Otp.findOne({ email });
-  if (!tempOtp || tempOtp.otp !== otp) {
-    res.status(400);
-    throw new Error("Invalid or expired OTP.");
-  }
+
+  /**
+   * The proof of verification is recorded on the pending record, server-side.
+   * `completeInstagramRegistration` reads the address from there and never from
+   * its own request body, so a caller cannot swap in an address they have not
+   * proven control of.
+   */
+  await markHandoffEmailVerified(handoffId, email);
+
   res.status(200).json({
     message: "Email verified successfully. You can now set your password.",
+  });
+});
+
+/**
+ * DELETE /api/auth/account
+ *
+ * The self-serve half of the deletion requirement. Meta's callbacks cover the
+ * platform-initiated cases; a user must also be able to ask directly, and the
+ * privacy policy promises it. Password re-entry is required because this is
+ * irreversible and a stolen session should not be enough.
+ */
+export const deleteMyAccount = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+  if (!password) {
+    res.status(400);
+    throw new Error("Please re-enter your password to confirm deletion.");
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found.");
+  }
+
+  if (!(await user.comparePassword(password))) {
+    res.status(401);
+    throw new Error("Incorrect password.");
+  }
+
+  const { confirmationCode, request } = await runDeletionRequest({
+    source: "self-serve",
+    userId: user._id,
+    asid: user.asid || null,
+    instagramUserId: user.instagramUserId || null,
+    email: user.email || null,
+  });
+
+  res.status(200).json({
+    message: "Your account and associated data have been deleted.",
+    confirmationCode,
+    status: request.status,
+    pendingItems: request.outstanding || [],
   });
 });

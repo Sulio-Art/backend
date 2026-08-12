@@ -3,12 +3,30 @@ import mongoose from 'mongoose';
 import cloudinary from "../middleware/cloudinery.middleware.js";
 import asyncHandler from "express-async-handler";
 
+/**
+ * subject / description / studioLife are encrypted at rest, so the schema can no
+ * longer enforce their length — a validator would measure the ciphertext. These
+ * are the limits the schema used to carry, checked on the plaintext instead.
+ */
+const TEXT_LIMITS = { subject: 100, description: 500, studioLife: 500 };
+
+const assertTextLimits = (res, fields) => {
+  for (const [field, limit] of Object.entries(TEXT_LIMITS)) {
+    const value = fields[field];
+    if (typeof value === "string" && value.length > limit) {
+      res.status(400);
+      throw new Error(`${field} must be ${limit} characters or fewer.`);
+    }
+  }
+};
+
 const createDiaryEntry = asyncHandler(async (req, res) => {
   const { date, category, subject, description, studioLife } = req.body;
   if (!date || !category) {
     res.status(400);
     throw new Error("Date and Category are required fields.");
   }
+  assertTextLimits(res, { subject, description, studioLife });
   if (!req.files || req.files.length === 0) {
     res.status(400);
     throw new Error("At least one artwork photo is required.");
@@ -96,6 +114,7 @@ const getDiaryEntryById = asyncHandler(async (req, res) => {
 const updateDiaryEntry = asyncHandler(async (req, res) => {
   const { date, category, subject, description, studioLife, photosCleared } =
     req.body;
+  assertTextLimits(res, { subject, description, studioLife });
   const entryId = req.params.id;
   const entry = await DiaryEntry.findById(entryId);
 

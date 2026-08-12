@@ -1,13 +1,16 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { applyFieldEncryption } from "../conifg/encryptedFields.js";
 
 const userSchema = new mongoose.Schema(
   {
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    // Encrypted at rest. The uniqueness constraint lives on emailIndex below,
+    // because randomized ciphertext never collides and so cannot enforce it.
+    email: { type: String, required: true },
 
-    phoneNumber: { type: String, unique: true, sparse: true },
+    phoneNumber: { type: String },
 
     password: { type: String, required: true }, // Fixed: Removed unique:true
     isVerified: { type: Boolean, default: false },
@@ -71,6 +74,31 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: () => new Date(),
     },
+
+    // --- Blind indexes -------------------------------------------------------
+    // Deterministic HMACs of the encrypted fields above, maintained by the
+    // encryption plugin. They exist so equality lookups still work, and they
+    // carry the uniqueness constraints the plaintext fields used to hold.
+    // Sparse, because rows not yet migrated have no index value and would
+    // otherwise all collide on null.
+    emailIndex: {
+      type: String,
+      unique: true,
+      sparse: true,
+      select: false,
+    },
+    phoneNumberIndex: {
+      type: String,
+      unique: true,
+      sparse: true,
+      select: false,
+    },
+    instagramUserIdIndex: {
+      type: String,
+      index: true,
+      sparse: true,
+      select: false,
+    },
   },
   { timestamps: true }
 );
@@ -85,6 +113,10 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.comparePassword = async function (password) {
   return bcrypt.compare(password, this.password);
 };
+
+// Registered after the password hook so bcrypt still sees the plaintext it
+// expects; the two operate on different fields either way.
+applyFieldEncryption(userSchema, "User");
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);
 

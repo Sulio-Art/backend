@@ -3,7 +3,8 @@ import User from "../model/user.model.js";
 import Subscription from "../model/subscription.Model.js";
 import Otp from "../model/otp.model.js";
 import asyncHandler from "express-async-handler";
-import { SUPEROTP } from "../conifg/superotp.js";
+import { isSuperOtp } from "../conifg/superotp.js";
+import { hashMatches } from "../utils/encryption.js";
 
 export const verifyUserOtp = asyncHandler(async (req, res) => {
   const { firstName, lastName, email, password, otp } = req.body;
@@ -13,7 +14,7 @@ export const verifyUserOtp = asyncHandler(async (req, res) => {
     throw new Error("All registration details and OTP are required.");
   }
 
-  if (otp === SUPEROTP) {
+  if (isSuperOtp(otp)) {
     const userExists = await User.findOne({ email });
     if (userExists) {
       res.status(409);
@@ -58,7 +59,7 @@ export const verifyUserOtp = asyncHandler(async (req, res) => {
   }
 
   const tempOtp = await Otp.findOne({ email });
-  if (!tempOtp || tempOtp.otp !== otp) {
+  if (!tempOtp || !hashMatches(otp, tempOtp.otp, "Otp.otp")) {
     res.status(400);
     throw new Error("Invalid or expired OTP. Please try registering again.");
   }

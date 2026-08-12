@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { applyFieldEncryption } from "../conifg/encryptedFields.js";
 
 const chatSchema = new mongoose.Schema(
   {
@@ -18,5 +19,7 @@ const chatSchema = new mongoose.Schema(
 );
 
 chatSchema.index({ userId: 1, createdAt: -1 });
+
+applyFieldEncryption(chatSchema, "Chat");
 
 export default mongoose.models.Chat || mongoose.model('Chat', chatSchema);
